@@ -4,14 +4,29 @@ __pycache__/
 *.pyo
 .venv/
 venv/
-
-# === Web/PHP ===
-config/.env.php
 .env
+*.pem
+*.key
+
+# === Project dumps / cache ===
+sql/dumps/
+!schema_mysql.sql          # 只保留結構檔可推上 git
+logs/
+*.log
+*.pid
+*.tmp
+
+# === Web / PHP ===
+config/.env.php
 .env.*
 temp/
-*.log
 .vscode/
+.idea/
+
+# === Node / Frontend build (若未來有使用) ===
+node_modules/
+dist/
+build/
 
 # === System ===
 .DS_Store
@@ -19,3 +34,6 @@ Thumbs.db
 *.zip
 *.tar
 *.gz
+
+# === IDE specific ===
+*.code-workspace
