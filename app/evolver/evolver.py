@@ -343,6 +343,46 @@ def _weekly_cleanup(actives: List[Dict[str, Any]], summaries: Dict[int, Dict[str
         log.info(f"[evolver] CLEANUP freeze template_id={tid}")
     return frozen
 
+def run_weekly() -> Dict[str, Any]:
+    """
+    每週演化流程（交叉 + 清池）：
+    1) 讀取 active 與 summaries，依 bandit 排名選父代
+    2) 交叉生成子代，補齊到 TARGET_ACTIVE
+    3) 若仍超量或策略過密，做清池（保留 TARGET_ACTIVE）
+    """
+    actives = repo.get_active_templates()
+    summaries = repo.get_all_templates_summary(active_only=True)
+
+    # 擇優父代（與每日一致）
+    ranked = _score_and_rank(actives, summaries)
+    parents = [t for _, t in ranked if not _is_blacklisted(t)][:TOP_PARENTS]
+
+    active_count = len(actives)
+    need = max(0, TARGET_ACTIVE - active_count)
+
+    # 先試交叉補量；不足再用突變補量
+    n_cross = _spawn_crossed(parents, how_many=need)
+    actives = repo.get_active_templates()
+    active_count = len(actives)
+    still_need = max(0, TARGET_ACTIVE - active_count)
+    n_mut = 0
+    if still_need > 0:
+        n_mut = _spawn_children(parents, how_many=still_need)
+
+    # 若超量，清池（凍結低分者）
+    actives = repo.get_active_templates()
+    frozen_clean = _weekly_cleanup(actives, summaries, keep_n=TARGET_ACTIVE)
+
+    result = {
+        "crossed": n_cross,
+        "mutated": n_mut,
+        "frozen_cleanup": frozen_clean,
+        "active_after": repo.count_active_templates()
+    }
+    log.info(f"[evolver.weekly] result={result}")
+    return result
+
+
 
 def run_once() -> Dict[str, Any]:
     """
@@ -414,42 +454,3 @@ if __name__ == "__main__":
         run_once()
 
     
-def run_weekly() -> Dict[str, Any]:
-    """
-    每週演化流程（交叉 + 清池）：
-    1) 讀取 active 與 summaries，依 bandit 排名選父代
-    2) 交叉生成子代，補齊到 TARGET_ACTIVE
-    3) 若仍超量或策略過密，做清池（保留 TARGET_ACTIVE）
-    """
-    actives = repo.get_active_templates()
-    summaries = repo.get_all_templates_summary(active_only=True)
-
-    # 擇優父代（與每日一致）
-    ranked = _score_and_rank(actives, summaries)
-    parents = [t for _, t in ranked if not _is_blacklisted(t)][:TOP_PARENTS]
-
-    active_count = len(actives)
-    need = max(0, TARGET_ACTIVE - active_count)
-
-    # 先試交叉補量；不足再用突變補量
-    n_cross = _spawn_crossed(parents, how_many=need)
-    actives = repo.get_active_templates()
-    active_count = len(actives)
-    still_need = max(0, TARGET_ACTIVE - active_count)
-    n_mut = 0
-    if still_need > 0:
-        n_mut = _spawn_children(parents, how_many=still_need)
-
-    # 若超量，清池（凍結低分者）
-    actives = repo.get_active_templates()
-    frozen_clean = _weekly_cleanup(actives, summaries, keep_n=TARGET_ACTIVE)
-
-    result = {
-        "crossed": n_cross,
-        "mutated": n_mut,
-        "frozen_cleanup": frozen_clean,
-        "active_after": repo.count_active_templates()
-    }
-    log.info(f"[evolver.weekly] result={result}")
-    return result
-
