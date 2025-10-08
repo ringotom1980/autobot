@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autobot 儀表板</title>
+  <link rel="stylesheet" href="assets/css/style.css?v=13" />
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
+
+</head>
+
+<body>
+  <main class="container">
+    <h2>自我學習自動交易AI機器人</h2>
+
+    <!-- 區塊 1：啟動區（核心設定＋進階設定＋啟動/關閉按鈕） -->
+    <section id="runBlock" class="card">
+      <!-- 狀態列 -->
+      <div class="row ai-center">
+        <span id="statusDot" class="pill muted">狀態偵測中…</span>
+        <div class="spacer"></div>
+        <button id="btnToggle" type="button" class="btn btn-primary">啟動 AI 機器人</button>
+      </div>
+
+      <!-- 核心設定（單選） -->
+      <div class="grid-2 mt-16">
+        <div>
+          <label>幣種｜Symbol（單選）</label>
+          <select id="symbolSelect"></select>
+          <div class="label-sm">清單自幣安 API 載入（USDT 永續）</div>
+        </div>
+        <div>
+          <label>週期｜Interval（單選）</label>
+          <select id="intervalSelect"></select>
+        </div>
+      </div>
+
+      <div class="card mt-12">
+        <div>
+          <label>槓桿｜Leverage (1–150x)</label>
+          <div class="lev-row">
+            <button class="lev-btn" id="levDec" type="button">-</button>
+            <input class="lev-range" id="levRange" type="range" min="1" max="150" step="1" value="10" />
+            <button class="lev-btn" id="levInc" type="button">+</button>
+            <input class="lev-num" id="levNum" type="number" min="1" max="150" step="1" value="10" />
+          </div>
+        </div>
+
+        <div class="mt-12">
+          <label>投入資金｜Invest (USD)</label>
+          <input id="investNum" type="number" min="1" step="1" value="100" />
+        </div>
+      </div>
+
+      <div class="card mt-12">
+        <div class="grid-2">
+          <div class="mb-12">
+            <label>交易模式｜Trade Mode</label>
+            <select id="tradeMode">
+              <option value="SIM">模擬下單</option>
+              <option value="LIVE">真實下單</option>
+            </select>
+            <div class="label-sm">當選擇真實下單時，需勾選下方「二次保險」才會真的下單。</div>
+          </div>
+        </div>
+
+        <!-- 只有 LIVE 時才顯示 -->
+        <div id="liveArmedBlock">
+          <div class="row ai-center mt-12" style="gap:8px;">
+            <input id="liveArmed" type="checkbox" style="width:auto; margin:0;" />
+            <label for="liveArmed" class="m0">真實下單二次保險（live_armed）</label>
+          </div>
+          <div class="label-sm">未勾選時即使選擇真實下單，也只記錄動作，不送交易所。</div>
+        </div>
+      </div>
+
+
+
+      <!-- 進階風控（有勾選才會套用） -->
+      <div class="card mt-12">
+        <div class="row ai-center" id="advToggle" style="cursor:pointer;">
+          <div class="row ai-center adv-head">
+            <input id="useAdv" type="checkbox" />
+          </div>
+          <h3 class="m0">進階風控</h3>
+          <div class="spacer"></div>
+          <span id="advChevron" class="muted">展開 ▼</span>
+        </div>
+
+        <div id="advPanel" style="display:none; margin-top:12px;">
+          <div class="grid-2">
+            <div>
+              <label>單筆最大風險（max_risk_pct）</label>
+              <input id="max_risk_pct" type="number" step="0.0001" min="0" max="1" placeholder="0.01" />
+              <small class="muted">ATR 倉位上限，例 0.01＝1%</small>
+            </div>
+            <div>
+              <label>單日最大回撤（max_daily_dd_pct）</label>
+              <input id="max_daily_dd_pct" type="number" step="0.0001" min="0" max="1" placeholder="0.03" />
+            </div>
+            <div>
+              <label>最大連虧次數（max_consec_losses）</label>
+              <input id="max_consec_losses" type="number" step="1" min="0" placeholder="4" />
+            </div>
+            <div>
+              <label>進場閾值（entry_threshold）</label>
+              <input id="entry_threshold" type="number" step="0.01" min="0" max="5" placeholder="0.3" />
+            </div>
+            <div>
+              <label>反向差值（reverse_gap）</label>
+              <input id="reverse_gap" type="number" step="0.01" min="0" max="5" placeholder="0.2" />
+            </div>
+            <div>
+              <label>冷卻棒數（cooldown_bars）</label>
+              <input id="cooldown_bars" type="number" step="1" min="0" placeholder="2" />
+            </div>
+            <div>
+              <label>最小持有棒數（min_hold_bars）</label>
+              <input id="min_hold_bars" type="number" step="1" min="0" placeholder="2" />
+            </div>
+          </div>
+          <small class="muted">※ 只有勾選「進階風控」才會在啟動時一併套用以上參數。</small>
+        </div>
+      </div>
+
+      <!-- 隱藏：相容欄位（供除錯） -->
+      <input id="symbols_json" type="hidden" />
+      <input id="intervals_json" type="hidden" />
+      <input id="leverage_json" type="hidden" />
+      <input id="invest_usdt_json" type="hidden" />
+    </section>
+
+
+    <!-- 區塊 2：任務進度 -->
+    <section class="card">
+      <h2>
+        任務進度
+        <span id="healthBadge" class="badge warn" title="尚無資料"></span>
+      </h2>
+      <div class="row">
+        <div id="jobId" class="muted">--</div>
+        <div class="spacer"></div>
+        <div id="phase" class="pill">--</div>
+      </div>
+      <div class="progress mt-8"><span id="progressBar"></span></div>
+      <div id="progressText" class="muted mt-6">--</div>
+      <small class="muted">顯示資料抓取／特徵計算等背景任務的進度，幫助判斷系統是否正常運作。</small>
+    </section>
+
+
+    <!-- 區塊 3：交易統計（本次啟動期間） -->
+    <section class="grid stat-grid">
+      <div class="card stat-card">
+        <div class="stat-title">買多（次數）</div>
+        <div id="statLong" class="stat-num">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-title">買空（次數）</div>
+        <div id="statShort" class="stat-num">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-title">觀望（次數）</div>
+        <div id="statHold" class="stat-num">0</div>
+      </div>
+    </section>
+
+    <!-- 區塊 4：績效 -->
+    <section class="grid perf-grid">
+      <!-- 目前獲利 = 本次 Session -->
+      <div class="card">
+        <h3>目前獲利(USD)</h3>
+        <div id="pnlSession" class="big">--</div>
+        <div id="sessionLabel" class="muted">Session #--</div>
+      </div>
+
+      <!-- 今日獲利 -->
+      <div class="card">
+        <h3>今日獲利(USD)</h3>
+        <div id="pnlToday" class="big">--</div>
+      </div>
+
+      <!-- 近7日獲利 -->
+      <div class="card">
+        <h3>近7日獲利(USD)</h3>
+        <div id="pnl7d" class="big">--</div>
+      </div>
+    </section>
+    <!-- 區塊 5：策略模板 & 近7日演化趨勢（由 metrics.js 負責） -->
+    <section class="grid metrics-grid">
+      <!-- 策略模板 -->
+      <div class="card">
+        <div class="row ai-center">
+          <h2 class="m0">策略模板</h2>
+          <span id="tplPoolBadge" class="badge warn" title="初始化中"></span>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="kpi-row mt-12">
+          <div class="kpi">
+            <div class="kpi-label">啟用中</div>
+            <div id="tplActive" class="kpi-number">--</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">凍結</div>
+            <div id="tplFrozen" class="kpi-number">--</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">合計</div>
+            <div id="tplTotal" class="kpi-number">--</div>
+          </div>
+        </div>
+        <small class="muted">顏色點：綠＝健康、黃＝異常或無啟用、紅＝讀取錯誤。</small>
+      </div>
+
+      <!-- 近 7 日演化趨勢 -->
+      <div class="card">
+        <div class="row ai-center">
+          <h2 class="m0">近 7 日演化趨勢</h2>
+          <div class="spacer"></div>
+          <div class="legend">
+            <span class="legend-item"><i class="legend-dot mutate"></i>變異</span>
+            <span class="legend-item"><i class="legend-dot cross"></i>交配</span>
+            <span class="legend-item"><i class="legend-dot freeze"></i>凍結</span>
+          </div>
+        </div>
+        <canvas id="evoChart" height="140" class="mt-12"></canvas>
+        <div id="evoEmpty" class="muted mt-8" style="display:none;">尚無資料</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 確認用 Modal -->
+  <div id="modalMask" class="modal-mask">
+    <div class="modal">
+      <div class="row">
+        <h3 id="modalTitle" class="m0">確認</h3>
+        <div class="spacer"></div>
+        <button id="modalClose" class="btn btn-ghost" type="button">✕</button>
+      </div>
+      <div id="modalBody" class="mt-8" style="white-space:pre-line; line-height:1.6;"></div>
+      <div class="row mt-16 actions">
+        <div class="spacer"></div>
+        <button id="modalCancel" type="button" class="btn">取消</button>
+        <button id="modalOk" type="button" class="btn btn-primary">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/app.js?v=17"></script>
+  <script src="assets/js/metrics.js?v=3"></script>
+
+</body>
+
+</html>

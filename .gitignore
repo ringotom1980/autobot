@@ -1,0 +1,21 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# === Web/PHP ===
+config/.env.php
+.env
+.env.*
+temp/
+*.log
+.vscode/
+
+# === System ===
+.DS_Store
+Thumbs.db
+*.zip
+*.tar
+*.gz

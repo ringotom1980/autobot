@@ -1,0 +1,189 @@
+:root{
+  --bg: #0b1020;
+  --fg: #e6f0ff;
+  --muted: #8aa0c2;
+  --card: #141b2e;
+}
+
+*{ box-sizing: border-box; }
+body{ margin:0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui; }
+.container{ max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+
+/* 卡片 & 排版 */
+.card{ background: var(--card); padding: 16px; border-radius: 12px; margin: 12px 0; }
+label{ display:block; margin: 8px 0; }
+input, select{ width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #344; background:#0e1526; color: var(--fg); }
+
+.mt-12{ margin-top:12px; } .mt-16{ margin-top:16px; }
+.mt-8{ margin-top:8px; } .mt-6{ margin-top:6px; }
+.m0{ margin:0; }
+
+.row{ display:flex; gap: 8px; }
+.ai-center{ align-items: center; }
+.spacer{ flex:1; }
+.grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+.grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+
+.label-sm{ font-size:12px; color: var(--muted); }
+
+/* 按鈕樣式（字體繼承、手指游標、hover/active） */
+.btn{
+  font: inherit;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #22314d;
+  color: #cfe3ff;
+  cursor: pointer;
+  transition: transform .05s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
+  box-shadow: 0 2px 0 rgba(0,0,0,.25);
+  user-select: none;
+}
+.btn:hover{ box-shadow: 0 4px 10px rgba(0,0,0,.25); background:#2a3d61; }
+.btn:active{ transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+.btn[disabled]{ opacity:.6; cursor:not-allowed; }
+
+.btn-primary{ background: #4aa3ff; color:#001; }
+.btn-primary:hover{ background:#5eb0ff; }
+.btn-ghost{ background: transparent; color: var(--fg); border:1px solid #334; }
+
+/* 狀態膠囊 */
+.pill{ padding:4px 8px; border-radius:999px; background:#2a3552; color:#cfe; }
+.pill.ok{ background:#1e7a46; color:#eafff2; }
+.pill.warn{ background:#7a3a1e; color:#ffeedd; }
+.muted{ color: var(--muted); }
+
+/* 進度條 */
+.progress{ background:#1a2336; height:10px; border-radius:6px; overflow:hidden; }
+.progress > span{ display:block; height:100%; background:#4aa3ff; width:0%; }
+
+/* 大數字 */
+.big{ font-size: 28px; font-weight: 700; }
+
+/* 槓桿控件 */
+.lev-row{ display:flex; align-items:center; gap:8px; }
+.lev-btn{
+  width:32px; height:32px; border-radius:8px; border:1px solid #334;
+  background:#1a2336; color:#cfe; cursor:pointer;
+  transition: transform .05s ease, background .15s ease;
+}
+.lev-btn:hover{ background:#22314d; }
+.lev-btn:active{ transform: translateY(1px); }
+.lev-range{ flex: 1; }
+.lev-num{ width: 90px; }
+
+/* 進階風控標題與勾選距離 */
+.adv-head { gap: 12px; }
+#useAdv { margin-right: 6px; }
+
+/* Modal */
+.modal-mask{
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display:none; align-items: center; justify-content: center; z-index: 999;
+}
+.modal{
+  background: var(--card); padding: 20px; border-radius: 12px; width: min(560px, 92vw);
+}
+.modal h3{ margin-top: 0; }
+.actions{ gap: 16px; } /* 確認/取消按鈕間距加大 */
+
+/* 交易統計（三卡） */
+.stat-grid{ grid-template-columns: repeat(3, 1fr); }
+.stat-card{ display:flex; flex-direction:column; gap:8px; }
+.stat-title{ font-size:14px; color: var(--muted); }
+.stat-num{ font-size: 30px; font-weight: 800; line-height: 1.1; }
+
+/* 小徽章樣式 */
+.badge {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-left: 8px;
+  vertical-align: middle;
+  cursor: default;
+}
+.badge.ok   { background: #2ecc71; } /* 綠色 */
+.badge.warn { background: #f39c12; } /* 黃色 */
+.badge.crit { background: #e74c3c; } /* 紅色 */
+
+
+/* === Performance cards responsive grid === */
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .perf-grid {
+    grid-template-columns: 1fr; /* 手機改為直向一欄 */
+  }
+}
+
+/* === 獲利金額顏色 === */
+.big.pos  { color:#e74c3c; } /* 正：紅 */
+.big.neg  { color:#2ecc71; } /* 負：綠*/
+.big.zero { opacity:.85;   } /* 0：灰 */
+
+/* ====== 新增：策略模板 / 7日演化 區塊的樣式 ====== */
+
+/* 兩欄排版（手機改一欄） */
+.metrics-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+}
+@media (max-width: 768px){
+  .metrics-grid{ grid-template-columns: 1fr; }
+}
+
+/* KPI 三欄並齊、置中顯示 */
+.kpi-row{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:12px;
+}
+.kpi{ 
+  display:flex; 
+  flex-direction:column; 
+  align-items:center; 
+  justify-content:center; 
+  padding:12px; 
+  background:#101729; 
+  border:1px solid #24324d; 
+  border-radius:10px; 
+}
+.kpi-label{ font-size:13px; color:var(--muted); }
+.kpi-number{ font-size:24px; font-weight:800; line-height:1.1; }
+
+/* 小圓點徽章：不縮、不換行（避免被擠壓） */
+.badge{
+  display:inline-block;
+  width:12px; height:12px;
+  border-radius:50%;
+  margin-left:8px;
+  vertical-align:middle;
+  cursor:default;
+  white-space:nowrap;
+  flex:0 0 auto;
+}
+.badge.ok   { background:#2ecc71; }
+.badge.warn { background:#f39c12; }
+.badge.crit { background:#e74c3c; }
+
+/* 圖例 */
+.legend{
+  display:flex; gap:12px; align-items:center;
+  font-size:12px; color:var(--muted);
+}
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-dot{
+  display:inline-block; width:10px; height:10px; border-radius:50%;
+  background:#888;
+}
+.legend-dot.mutate{ background:#6fa8dc; } /* 藍 */
+.legend-dot.cross { background:#a3d977; } /* 綠 */
+.legend-dot.freeze{ background:#ffb366; } /* 橘 */
+
+/* 讓 canvas 不會模糊（搭配 JS 裡的 DPR 調整） */
+canvas{ width:100%; height:auto; display:block; }
