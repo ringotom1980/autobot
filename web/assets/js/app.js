@@ -67,7 +67,6 @@ function paintSign(el, val) {
   }
 }
 
-
 // 立刻把任務進度區塊清空（不等 API 回應）
 function resetJobProgressUI() {
   setText('jobId', '--');
@@ -183,6 +182,7 @@ function setCoreControlsDisabled(disabled) {
     'reverse_gap',
     'cooldown_bars',
     'min_hold_bars',
+    'exitHorizonAuto',
     'tradeMode',
     'liveArmed',
   ];
@@ -261,6 +261,8 @@ async function loadSettings() {
     setIfNumber('reverse_gap', row.reverse_gap);
     setIfNumber('cooldown_bars', row.cooldown_bars);
     setIfNumber('min_hold_bars', row.min_hold_bars);
+    if ($('exitHorizonAuto'))
+      $('exitHorizonAuto').checked = Number(row.exit_horizon_auto || 0) === 1;
     if ($('useAdv')) $('useAdv').checked = Number(row.adv_enabled || 0) === 1;
     if ($('tradeMode')) $('tradeMode').value = row.trade_mode === 'LIVE' ? 'LIVE' : 'SIM';
     if ($('liveArmed')) $('liveArmed').checked = Number(row.live_armed || 0) === 1;
@@ -288,7 +290,6 @@ async function loadMetrics() {
     paintSign($('pnl7d'), v7d);
 
     setText('sessionLabel', j.session_id ? `Session #${j.session_id}` : 'Session #--');
-
 
     const enabled = Number(j.is_enabled || 0) === 1;
     if ($('statusDot')) {
@@ -404,6 +405,7 @@ const ADV_LABELS_ZH = {
   reverse_gap: '反向差值（reverse_gap）',
   cooldown_bars: '冷卻棒數（cooldown_bars）',
   min_hold_bars: '最小持有棒數（min_hold_bars）',
+  exit_horizon_auto: '自動學習出場上限（k_max）',
 };
 
 function summarizeCurrentSettings() {
@@ -444,13 +446,14 @@ function summarizeCurrentSettings() {
       .filter(([, v]) => v !== '' && v !== null && v !== undefined)
       .map(([k, v]) => `  ${ADV_LABELS_ZH[k] || k}: ${v}`)
       .join('\n') || '  （使用預設值）';
-
+  const autoK = $('exitHorizonAuto') && $('exitHorizonAuto').checked ? '啟用' : '未啟用';
   const out = `幣種: ${sym}
 週期: ${iv}
 槓桿: ${lev}x
 投入: ${inv} USD
 ${modeLine}
 ${modeText}
+自動 k_max（exit_horizon_auto）: ${autoK}
 進階風控: ${useAdv ? '啟用' : '未啟用'}
 ${useAdv ? advLines : ''}`;
 
@@ -498,6 +501,7 @@ function buildCorePayload(extra = {}) {
   // ★ SIM 模式一律關閉 live_armed（保險）
   if (payload.trade_mode !== 'LIVE') payload.live_armed = 0;
   payload.adv_enabled = useAdv ? 1 : 0;
+  payload.exit_horizon_auto = $('exitHorizonAuto') && $('exitHorizonAuto').checked ? 1 : 0;
   return payload;
 }
 

@@ -34,6 +34,7 @@ if ($method === 'POST') {
     $invest_usdt_json = array_key_exists('invest_usdt_json', $j)  ? json_encode($j['invest_usdt_json'])  : null;
     $is_enabled       = array_key_exists('is_enabled', $j)        ? (int)$j['is_enabled']                : null;
     $adv_enabled    = array_key_exists('adv_enabled', $j)    ? (int)$j['adv_enabled']    : null;
+    $exit_horizon_auto = array_key_exists('exit_horizon_auto', $j) ? (int)$j['exit_horizon_auto'] : null;
 
 
     $max_risk_pct       = array_key_exists('max_risk_pct', $j)       ? (float)$j['max_risk_pct']       : null;
@@ -48,6 +49,7 @@ if ($method === 'POST') {
     $live_armed      = array_key_exists('live_armed', $j)      ? (int)$j['live_armed'] : null;
     $fee_rate        = array_key_exists('fee_rate', $j)        ? (float)$j['fee_rate']   : null;
     $slip_rate       = array_key_exists('slip_rate', $j)       ? (float)$j['slip_rate']  : null;
+
 
     $exists = (int)$pdo->query("SELECT COUNT(*) FROM settings WHERE id=1")->fetchColumn() > 0;
 
@@ -87,6 +89,10 @@ if ($method === 'POST') {
                 $params[':adv'] = $adv_enabled;
             }
 
+            if (!is_null($exit_horizon_auto)) {
+                $sets[] = "exit_horizon_auto = :eha";
+                $params[':eha'] = $exit_horizon_auto;
+            }
 
             if (!is_null($max_risk_pct)) {
                 $sets[] = "max_risk_pct = :f1";
@@ -125,6 +131,12 @@ if ($method === 'POST') {
                 $sets[] = "live_armed = :la";
                 $params[':la'] = $live_armed;
             }
+
+            // 伺服器端保險：非 LIVE 模式一律把 live_armed 關 0
+            if (!is_null($trade_mode) && $trade_mode !== 'LIVE') {
+                $live_armed = 0;
+            }
+
             if (!is_null($fee_rate)) {
                 $sets[] = "fee_rate = :fr";
                 $params[':fr'] = $fee_rate;
@@ -186,11 +198,11 @@ if ($method === 'POST') {
                 INSERT INTO settings(
                   id, symbols_json, intervals_json, leverage_json, invest_usdt_json, is_enabled,
                   max_risk_pct, max_daily_dd_pct, max_consec_losses, entry_threshold, reverse_gap, cooldown_bars, min_hold_bars, adv_enabled,
-                  trade_mode, live_armed, fee_rate, slip_rate
+                  trade_mode, live_armed, fee_rate, slip_rate, exit_horizon_auto
                 ) VALUES (
                   1, :a, :b, :c, :d, :e,
                   :f1, :f2, :f3, :f4, :f5, :f6, :f7, :adv,
-                  :tm, :la, :fr, :sr
+                  :tm, :la, :fr, :sr, :eha
                 )
             ");
             $stmt->execute([
@@ -211,6 +223,8 @@ if ($method === 'POST') {
                 ':la' => $live_armed         ?? 0,
                 ':fr' => $fee_rate           ?? 0.0004,
                 ':sr' => $slip_rate          ?? 0.0005,
+                ':eha' => $exit_horizon_auto ?? 0,
+
             ]);
 
             // 初次且 is_enabled=1：清一次 job_progress 並開 session
@@ -225,6 +239,10 @@ if ($method === 'POST') {
                 $tm = $trade_mode ?? 'SIM';
                 $stmt = $pdo->prepare("INSERT INTO run_sessions(started_at, is_active, trade_mode) VALUES(UNIX_TIMESTAMP()*1000, 1, :tm)");
                 $stmt->execute([':tm' => $tm]);
+                // 同步目前 session_id 到 settings
+                $sid = (int)$pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
+                $up  = $pdo->prepare("UPDATE settings SET current_session_id = :sid WHERE id=1");
+                $up->execute([':sid' => $sid]);
             }
 
             $pdo->commit();

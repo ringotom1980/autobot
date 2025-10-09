@@ -66,7 +66,7 @@ CREATE TABLE `decisions_log` (
   KEY `idx_time` (`ts`),
   KEY `idx_sym_iv` (`symbol`,`interval`),
   KEY `idx_dec_sit` (`symbol`,`interval`,`ts`)
-) ENGINE=InnoDB AUTO_INCREMENT=2872 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3606 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -88,6 +88,24 @@ CREATE TABLE `evolution_events` (
   KEY `idx_ev_action` (`action`),
   KEY `idx_ev_newtid` (`new_template_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `exit_horizon_stats`
+--
+
+DROP TABLE IF EXISTS `exit_horizon_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `exit_horizon_stats` (
+  `template_id` bigint(20) NOT NULL,
+  `regime` tinyint(4) NOT NULL,
+  `k` tinyint(4) NOT NULL,
+  `n` int(11) NOT NULL DEFAULT 0,
+  `reward_sum` double NOT NULL DEFAULT 0,
+  `reward_mean` double NOT NULL DEFAULT 0,
+  PRIMARY KEY (`template_id`,`regime`,`k`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -164,7 +182,25 @@ CREATE TABLE `orders` (
   `session_id` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`order_id`),
   KEY `idx_ord_session` (`session_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=106 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=141 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `policy_overrides`
+--
+
+DROP TABLE IF EXISTS `policy_overrides`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `policy_overrides` (
+  `template_id` bigint(20) NOT NULL,
+  `interval` varchar(8) NOT NULL,
+  `regime` tinyint(4) NOT NULL,
+  `symbol` varchar(16) NOT NULL,
+  `max_hold_bars` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`template_id`,`interval`,`regime`,`symbol`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -195,7 +231,7 @@ CREATE TABLE `positions` (
   PRIMARY KEY (`pos_id`),
   KEY `idx_pos_open` (`symbol`,`status`,`opened_at`),
   KEY `idx_pos_session` (`session_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=113 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=148 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -236,7 +272,7 @@ CREATE TABLE `run_sessions` (
   KEY `idx_started` (`started_at`),
   KEY `idx_active_started` (`is_active`,`started_at`),
   KEY `idx_mode_started` (`mode`,`started_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -268,9 +304,10 @@ CREATE TABLE `settings` (
   `trade_mode` enum('SIM','LIVE') NOT NULL DEFAULT 'SIM',
   `current_session_id` bigint(20) DEFAULT NULL,
   `live_armed` tinyint(1) NOT NULL DEFAULT 0,
-  `fee_rate` decimal(10,8) NOT NULL DEFAULT 0.00040000,
+  `fee_rate` decimal(10,8) NOT NULL DEFAULT 0.00020000,
   `slip_rate` decimal(10,8) NOT NULL DEFAULT 0.00050000,
   `adv_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `exit_horizon_auto` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -355,7 +392,7 @@ CREATE TABLE `trades_log` (
   KEY `idx_tl_siet` (`symbol`,`interval`,`exit_ts`),
   KEY `idx_tpl` (`template_id`),
   KEY `idx_tl_session` (`session_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=112 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=147 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -388,6 +425,21 @@ SET character_set_client = utf8mb4;
   1 AS `source_template_ids`,
   1 AS `new_template_id`,
   1 AS `notes` */;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Temporary table structure for view `v_exit_horizon_best`
+--
+
+DROP TABLE IF EXISTS `v_exit_horizon_best`;
+/*!50001 DROP VIEW IF EXISTS `v_exit_horizon_best`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
+/*!50001 CREATE VIEW `v_exit_horizon_best` AS SELECT
+ 1 AS `template_id`,
+  1 AS `regime`,
+  1 AS `k`,
+  1 AS `reward_mean` */;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -448,6 +500,24 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
+-- Final view structure for view `v_exit_horizon_best`
+--
+
+/*!50001 DROP VIEW IF EXISTS `v_exit_horizon_best`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_unicode_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`u327657097_autobot_admin`@`127.0.0.1` SQL SECURITY DEFINER */
+/*!50001 VIEW `v_exit_horizon_best` AS select `s`.`template_id` AS `template_id`,`s`.`regime` AS `regime`,`s`.`k` AS `k`,`s`.`reward_mean` AS `reward_mean` from (`exit_horizon_stats` `s` join (select `exit_horizon_stats`.`template_id` AS `template_id`,`exit_horizon_stats`.`regime` AS `regime`,max(`exit_horizon_stats`.`reward_mean`) AS `best` from `exit_horizon_stats` group by `exit_horizon_stats`.`template_id`,`exit_horizon_stats`.`regime`) `t` on(`t`.`template_id` = `s`.`template_id` and `t`.`regime` = `s`.`regime` and `t`.`best` = `s`.`reward_mean`)) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+--
 -- Final view structure for view `v_templates_pool_status`
 --
 
@@ -474,4 +544,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2025-10-08 17:43:30
+-- Dump completed on 2025-10-09 20:25:24

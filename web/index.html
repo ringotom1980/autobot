@@ -90,6 +90,16 @@
 
         <div id="advPanel" style="display:none; margin-top:12px;">
           <div class="grid-2">
+            <div class="full">
+              <div class="row ai-center" style="gap:8px; margin-bottom:8px;">
+                <input id="exitHorizonAuto" type="checkbox" style="width:auto; margin:0;" />
+                <label for="exitHorizonAuto" class="m0">自動學習出場上限（k_max）</label>
+              </div>
+              <small class="muted">
+                依最近成交持有棒數分佈（預設 P90，近 100 筆）動態調整 max_hold_bars；會受「最小持有棒數」與系統上限夾住。
+              </small>
+            </div>
+
             <div>
               <label>單筆最大風險（max_risk_pct）</label>
               <input id="max_risk_pct" type="number" step="0.0001" min="0" max="1" placeholder="0.01" />
@@ -248,7 +258,7 @@
     </div>
   </div>
 
-  <script src="assets/js/app.js?v=17"></script>
+  <script src="assets/js/app.js?v=18"></script>
   <script src="assets/js/metrics.js?v=3"></script>
 
 </body>

@@ -42,6 +42,7 @@ exec("ALTER TABLE positions ADD COLUMN IF NOT EXISTS `template_id` BIGINT NULL")
 exec("ALTER TABLE positions ADD COLUMN IF NOT EXISTS `regime_entry` TINYINT NULL")
 exec("ALTER TABLE positions ADD COLUMN IF NOT EXISTS `opened_bar_ms` INT NULL")
 exec("ALTER TABLE positions ADD COLUMN IF NOT EXISTS `peak_price` DOUBLE NULL")
+exec("ALTER TABLE settings ADD COLUMN IF NOT EXISTS `exit_horizon_auto` TINYINT(1) NOT NULL DEFAULT 0")
 
 
 exec("""
@@ -121,6 +122,49 @@ def _avg_atr_pct(symbol: str, interval: str, k: int = 20) -> float:
         return 0.0
     return float(sum(float(r["atr_pct"] or 0.0) for r in rows) / len(rows))
 
+def _auto_exit_horizon(symbol: str, interval: str, bar_ms: int,
+                       static_max_hold: Optional[int],
+                       min_hold_bars: int,
+                       lookback_trades: int = 100,
+                       pctl: float = 0.9,
+                       hard_cap: int = 240) -> Optional[int]:
+    """
+    依最近成交的「實際持有棒數」分佈，動態決定 k_max (= max_hold_bars)。
+    - 用近 lookback_trades 筆的 (exit_ts - entry_ts) / bar_ms 四捨五入得到 held_bars
+    - 取分位數 pctl（如 P90）當作動態上限
+    - 下界：min_hold_bars，上界：min(static_max_hold or hard_cap, hard_cap)
+    回傳 None 代表維持原本設定（資料太少）。
+    """
+    rows = exec("""
+        SELECT entry_ts, exit_ts
+          FROM trades_log
+         WHERE symbol=:s AND `interval`=:i AND exit_ts IS NOT NULL
+         ORDER BY exit_ts DESC
+         LIMIT :n
+    """, s=symbol, i=interval, n=int(lookback_trades)).mappings().all()
+
+    held = []
+    for r in rows or []:
+        ent = int(r["entry_ts"] or 0)
+        ext = int(r["exit_ts"] or 0)
+        if ext > ent and bar_ms > 0:
+            k = max(int(round((ext - ent) / float(bar_ms))), 0)
+            if k > 0:
+                held.append(k)
+
+    if len(held) < 20:  # 樣本太少不動
+        return None
+
+    held.sort()
+    idx = min(int(len(held) * float(pctl)), len(held) - 1)
+    dyn = held[idx]
+
+    lo = max(int(min_hold_bars or 0), 1)
+    hi_candidate = int(static_max_hold) if static_max_hold is not None else int(hard_cap)
+    hi = max(1, min(int(hard_cap), hi_candidate))
+    out = max(lo, min(dyn, hi))
+    return int(out)
+
 
 def _settings_for(symbol: str) -> Dict[str, Any]:
     r = exec("SELECT leverage_json, invest_usdt_json, max_risk_pct FROM settings WHERE id=1").mappings().first()
@@ -148,6 +192,7 @@ def _exit_settings() -> Dict[str, Any]:
 
 
 def _settings_mode_and_costs() -> Dict[str, Any]:
+    
     r = exec("SELECT trade_mode, live_armed, fee_rate, slip_rate FROM settings WHERE id=1").mappings().first()
     if not r:
         return {"trade_mode": "SIM", "live_armed": 0, "fee_rate": 0.0004, "slip_rate": 0.0005}
@@ -157,6 +202,13 @@ def _settings_mode_and_costs() -> Dict[str, Any]:
         "fee_rate": float(r.get("fee_rate") or 0.0004),
         "slip_rate": float(r.get("slip_rate") or 0.0005),
     }
+
+def _exit_horizon_auto_enabled() -> bool:
+    v = exec("SELECT exit_horizon_auto FROM settings WHERE id=1").scalar()
+    try:
+        return int(v or 0) == 1
+    except Exception:
+        return False
 
 
 def _settings_risk(symbol: str) -> Dict[str, Any]:
@@ -198,6 +250,7 @@ def _settings_risk(symbol: str) -> Dict[str, Any]:
         "max_consec_losses": int(mcl or 0),
         "cooldown_bars":     int(cd  or 0),
         "min_hold_bars":     int(mh  or 0),
+
     }
 
 
@@ -414,6 +467,7 @@ def close_position_v2(symbol: str, interval: str, last_price: float) -> Optional
         if cover:
             fee = float(cover.get("commission", fee))
             funding_fee = float(cover.get("funding_fee", 0.0))
+            slp = 0.0
         else:
             journal("BINANCE_COST_FETCH",
                     f"{symbol} entry={entry_ts} exit={ts}", "WARN")
@@ -481,6 +535,31 @@ def apply_decision(symbol: str, interval: str, decision: Dict[str, Any]) -> None
         prev_peak = float(cur_pos.get("peak_price") or entry_px)
 
         es = _exit_settings()
+
+        # —— 動態學習 k_max（= max_hold_bars），完全獨立於 adv_enabled ——
+        risk = _settings_risk(symbol)  # 只為了拿 min_hold_bars 下界，不管開關
+        if _exit_horizon_auto_enabled():
+            old_static = es["max_hold_bars"]  # 先存起來，日誌要顯示正確的「靜態上限」
+            hard_caps = {"1m": 240, "15m": 96, "30m": 96, "1h": 96, "4h": 90}
+            dyn_k = _auto_exit_horizon(
+                symbol=symbol,
+                interval=interval,
+                bar_ms=bar_ms,
+                static_max_hold=old_static,
+                min_hold_bars=int(risk.get("min_hold_bars") or 0),
+                lookback_trades=100,
+                pctl=0.9,
+                hard_cap=hard_caps.get(interval, 240),
+            )
+
+            if dyn_k is not None:
+                es["max_hold_bars"] = int(dyn_k)
+                journal(
+                    "AUTO_KMAX",
+                    f"dyn_k={dyn_k} (min_hold={risk.get('min_hold_bars')}, static_max={old_static})",
+                    "INFO"
+                )
+
         hit, rsn, new_peak = should_exit(
             direction=cur_side,
             entry_price=entry_px,
@@ -543,12 +622,6 @@ def apply_decision(symbol: str, interval: str, decision: Dict[str, Any]) -> None
             cooldown_bars=int(risk["cooldown_bars"] or 0),
             bar_ms=_bar_ms_of(interval),
         )
-
-    if blocked:
-        journal("BLOCK_ENTRY", reason, "WARN")
-        return
-
-
 
     if blocked:
         journal("BLOCK_ENTRY", reason, "WARN")

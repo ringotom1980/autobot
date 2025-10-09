@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Tuple
 import json
 from ..db import exec as q
+from ..learner.horizon import learn_exit_horizon
 
 # -----------------------------------------------
 # 防守性建表（不破壞既有；僅在缺表時建立正確版本）
@@ -130,5 +131,21 @@ def book_trade(
           last_pnl     = VALUES(last_pnl),
           last_exit_ts = VALUES(last_exit_ts)
         """, tid=int(template_id), reg=int(regime), rw=float(reward), pnl=float(pnl_after), ext=int(exit_ts))
+
+    # === 自動學習最佳出場棒數（僅當 settings.exit_horizon_auto=1） ===
+    try:
+        ena = q("SELECT exit_horizon_auto FROM settings WHERE id=1").scalar()
+        if int(ena or 0) == 1:
+            # 推斷方向 & 絕對張數
+            direction = "LONG" if float(qty) > 0 else "SHORT"
+            learn_exit_horizon(
+                symbol=symbol, interval=interval, template_id=template_id, regime=int(regime),
+                entry_ts=int(entry_ts), exit_ts=int(exit_ts),
+                direction=direction, entry_price=float(entry_price), qty_abs=abs(float(qty)),
+                k_min=1, k_max=12   # 先用 1~12 根搜尋，可再調
+            )
+    except Exception:
+        pass
+
 
     return float(reward), float(pnl_after)

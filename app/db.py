@@ -40,18 +40,31 @@ def _make_url(cfg: Config) -> str:
     return f"mysql+pymysql://{user}:{pwd}@{host}:{port}/{db}?charset={charset}"
 
 
+# app/db.py
+
 def _build_engine() -> Engine:
     cfg = Config()
     # 先確保 SSH 隧道已啟動（與舊介面相容）
     db_connect.get_connection().close()
-    # 建 Engine：開啟 pre_ping + 合理的 pool 設定，降低 wait_timeout 中斷
+    # ★ 等 0.3s，給隧道一個穩定時間窗（避免剛起來就握手失敗）
+    import time; time.sleep(0.3)
+
+    # 建 Engine：開啟 pre_ping + 較短 recycle + 連線逾時
     return create_engine(
         _make_url(cfg),
-        pool_pre_ping=True,       # 送 SELECT 1 偵測壞連線，自動重連
-        pool_recycle=1800,        # 30 分回收，避免被 MySQL wait_timeout 掉線
-        pool_size=5,              # 小型專案夠用
-        max_overflow=10,          # 高峰時額外連線
+        pool_pre_ping=True,          # 取用前先 SELECT 1
+        pool_recycle=180,            # ★ 3 分內主動回收，低於常見 wait_timeout
+        pool_size=5,
+        max_overflow=10,
+        pool_reset_on_return="rollback",
         future=True,
+        connect_args={               # ★ 防卡死
+            "connect_timeout": 10,
+            "read_timeout": 10,
+            "write_timeout": 10,
+            "charset": "utf8mb4",
+        },
+        isolation_level="AUTOCOMMIT",
     )
 
 
@@ -66,33 +79,36 @@ def engine() -> Engine:
 
 
 def _retryable_exec(sql: str, params, *, retry_once: bool = True) -> Result:
-    """
-    執行 SQL，遇到連線類錯誤做一次自動重試（會重啟隧道 + 重建 Engine）
-    """
     global _engine
     try:
         with engine().connect() as conn:
             res: Result = conn.execute(text(sql), params)
+            # AUTOCOMMIT 已開，這行留著也無害
             conn.commit()
             return res
     except (OperationalError, InterfaceError) as e:
         if not retry_once:
             raise
-        # 常見錯誤碼：2003/2013/2014/2055 等（連線失敗、lost connection、server has gone away）
         log.warning("DB 連線異常，嘗試自動重試一次：%s", e)
+
+        # 1) 先確保隧道
         try:
-            # 確保隧道仍在（或重啟）
             db_connect.get_connection().close()
         except Exception as ee:
             log.error("重啟 SSH 隧道失敗：%s", ee)
-        # 重建 Engine
+
+        # 2) 丟棄舊池
         try:
             if _engine is not None:
                 _engine.dispose(close=True)
         except Exception:
             pass
+
+        # 3) 重建 Engine，並給一點緩衝時間
         _engine = _build_engine()
-        # 再試一次
+        import time; time.sleep(0.3)
+
+        # 4) 再試一次
         with engine().connect() as conn:
             res: Result = conn.execute(text(sql), params)
             conn.commit()
