@@ -65,6 +65,44 @@ def _avg(vals: List[float], default: float = 0.0) -> float:
         return default
     return _finite(sum(_finite(v, 0.0) for v in vals) / len(vals), default)
 
+# === 新增：動態門檻工具 ===
+
+def _recent_gap_quantile(symbol: str, interval: str, n: int = 300, q: float = 0.75) -> Optional[float]:
+    """
+    從 decisions_log 取最近 n 筆的 gap=|E_long - E_short|，回傳分位數 q。
+    不足（<50 筆）則回 None。
+    """
+    rows = exec("""
+        SELECT ABS(COALESCE(E_long,0) - COALESCE(E_short,0)) AS gap
+          FROM decisions_log
+         WHERE symbol=:s AND `interval`=:i
+         ORDER BY id DESC
+         LIMIT :n
+    """, s=symbol, i=interval, n=int(n)).mappings().all()
+    vals = [float(r["gap"] or 0.0) for r in rows or [] if r and r.get("gap") is not None]
+    if len(vals) < 50:
+        return None
+    vals.sort()
+    k = max(0, min(int(len(vals) * float(q)), len(vals)-1))
+    return float(vals[k])
+
+def _dynamic_entry_threshold(symbol: str, interval: str, feats: List[Dict[str, Any]],
+                             alpha: float = 0.9) -> float:
+    """
+    動態門檻：
+    1) 先用 decisions_log 的 P75(gap) × alpha
+    2) 若樣本不足，用 ATR 尺度 fallback（對齊你目前 E 的量級）
+    """
+    q = _recent_gap_quantile(symbol, interval, n=300, q=0.75)
+    if q is not None and q > 0:
+        return float(q) * float(alpha)
+
+    # fallback: 用 ATR 尺度估（你現在 E 是用 atr_pct 當風險分母，量級很大）
+    k = min(50, len(feats))
+    atr_mean = _avg([r.get("atr_pct", 0.0) for r in feats[:k]], 0.0)
+    scale = 2_000_000.0  # 如要更保守可調大；更積極調小
+    return max(1.0, float(atr_mean) * scale)
+
 
 def _decide_direction(feats: List[Dict[str, Any]]) -> Tuple[str, float, float]:
     """
@@ -170,6 +208,12 @@ def evaluate_symbol_interval(symbol: str, interval: str) -> Dict[str, Any]:
         return {"action": "HOLD", "E_long": 0.0, "E_short": 0.0, "template_id": _BASELINE_TPL["LONG"]}
 
     action, E_long, E_short = _decide_direction(feats)
+    # === 新增：用動態門檻覆蓋 action（gap 不夠大 → HOLD） ===
+    gap = abs(float(E_long) - float(E_short))
+    th = _dynamic_entry_threshold(symbol, interval, feats, alpha=0.9)  # 0.8~1.2 可微調
+    if gap < th:
+        action = "HOLD"
+
     last = feats[0]  # 最新一根
     regime = int(_finite(last.get("regime"), 0))
 

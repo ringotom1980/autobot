@@ -1,12 +1,14 @@
 # app/scheduler.py
 from __future__ import annotations
-import json, logging
+import json
+import logging
 from typing import Tuple, List, Dict
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 try:
-    import pytz; TZ = pytz.timezone("Asia/Taipei")
+    import pytz
+    TZ = pytz.timezone("Asia/Taipei")
 except Exception:
     TZ = None
 
@@ -19,7 +21,8 @@ from .session import create_session_if_needed, close_session_if_needed
 
 log = logging.getLogger("autobot.scheduler")
 if not log.handlers:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s | %(levelname)s | %(message)s")
 
 
 # -----------------------------
@@ -27,7 +30,8 @@ if not log.handlers:
 # -----------------------------
 def _read_settings() -> Tuple[List[str], List[str], int]:
     try:
-        row = exec("SELECT symbols_json, intervals_json, is_enabled FROM settings WHERE id=1").mappings().first()
+        row = exec(
+            "SELECT symbols_json, intervals_json, is_enabled FROM settings WHERE id=1").mappings().first()
     except Exception as e:
         log.error("讀取 settings 失敗: %s", e)
         return (["BTCUSDT"], ["1m"], 1)
@@ -70,13 +74,13 @@ def _cleanup_jobs(active_symbols: List[str], active_intervals: List[str]) -> Non
             return
 
         syms = tuple(dict.fromkeys(active_symbols))
-        ivs  = tuple(dict.fromkeys(active_intervals))
+        ivs = tuple(dict.fromkeys(active_intervals))
 
         sym_params: Dict[str, str] = {f"sym{i}": s for i, s in enumerate(syms)}
-        iv_params: Dict[str, str]  = {f"iv{i}": v for i, v in enumerate(ivs)}
+        iv_params: Dict[str, str] = {f"iv{i}": v for i, v in enumerate(ivs)}
 
         sym_placeholders = ", ".join(f":{k}" for k in sym_params.keys())
-        iv_placeholders  = ", ".join(f":{k}" for k in iv_params.keys())
+        iv_placeholders = ", ".join(f":{k}" for k in iv_params.keys())
 
         sql = f"""
             DELETE FROM job_progress
@@ -90,7 +94,7 @@ def _cleanup_jobs(active_symbols: List[str], active_intervals: List[str]) -> Non
         log.info("已清除非當前設定的 job_progress 殭屍紀錄")
     except Exception as e:
         push_error("scheduler:cleanup", f"{type(e).__name__}: {e}")
-        log.warning("清除 job_progress 殭屻紀錄失敗：%s", e)
+        log.warning("清除 job_progress 殭屍紀錄失敗：%s", e)
 
 
 # -----------------------------
@@ -100,7 +104,7 @@ def _job_one(symbol: str, interval: str) -> None:
     # 每次執行前重新讀設定（關鍵：動態比對）
     cur_syms, cur_ivs, enabled = _read_settings()
     job_base = f"{symbol}:{interval}"
-     # 確保 session 狀態正確（依 is_enabled 自動開/關）
+    # 確保 session 狀態正確（依 is_enabled 自動開/關）
     try:
         if enabled == 1:
             create_session_if_needed()
@@ -110,44 +114,55 @@ def _job_one(symbol: str, interval: str) -> None:
         log.warning("session 維護失敗：%s", _e)
 
     if enabled != 1:
-        set_progress(f"bar:{job_base}", "SKIP", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
+        set_progress(f"bar:{job_base}", "SKIP", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
         log.info("排程略過（is_enabled=0）：%s %s", symbol, interval)
         return
 
     # 不在當前設定 → 直接 SKIP，避免舊任務再寫進度
     if (symbol not in cur_syms) or (interval not in cur_ivs):
-        set_progress(f"bar:{job_base}", "SKIP", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
-        log.info("排程略過（不在當前 settings）：%s %s | settings=%s x %s", symbol, interval, cur_syms, cur_ivs)
+        set_progress(f"bar:{job_base}", "SKIP", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
+        log.info("排程略過（不在當前 settings）：%s %s | settings=%s x %s",
+                 symbol, interval, cur_syms, cur_ivs)
         return
 
     # 1) collector
     try:
-        set_progress(f"collector:{job_base}", "RUN", symbol=symbol, interval=interval, step=0, total=1)
+        set_progress(f"collector:{job_base}", "RUN",
+                     symbol=symbol, interval=interval, step=0, total=1)
         from .data.collector import fetch_klines_to_db
         _ = fetch_klines_to_db(symbol=symbol, interval=interval)
-        set_progress(f"collector:{job_base}", "OK", symbol=symbol, interval=interval, step=1, total=1, pct=100.0)
+        set_progress(f"collector:{job_base}", "OK", symbol=symbol,
+                     interval=interval, step=1, total=1, pct=100.0)
     except Exception as e:
         push_error(f"collector:{job_base}", f"{type(e).__name__}: {e}")
-        set_progress(f"collector:{job_base}", "ERROR", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
+        set_progress(f"collector:{job_base}", "ERROR", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
         return
 
     # 2) features
     try:
-        set_progress(f"features:{job_base}", "RUN", symbol=symbol, interval=interval, step=0, total=1)
+        set_progress(f"features:{job_base}", "RUN",
+                     symbol=symbol, interval=interval, step=0, total=1)
         from .data.features import compute_and_store_features
         _ = compute_and_store_features(symbol=symbol, interval=interval)
-        set_progress(f"features:{job_base}", "OK", symbol=symbol, interval=interval, step=1, total=1, pct=100.0)
+        set_progress(f"features:{job_base}", "OK", symbol=symbol,
+                     interval=interval, step=1, total=1, pct=100.0)
     except Exception as e:
         push_error(f"features:{job_base}", f"{type(e).__name__}: {e}")
-        set_progress(f"features:{job_base}", "ERROR", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
+        set_progress(f"features:{job_base}", "ERROR", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
         return
 
     # 3) policy
     try:
-        set_progress(f"policy:{job_base}", "RUN", symbol=symbol, interval=interval, step=0, total=1)
+        set_progress(f"policy:{job_base}", "RUN",
+                     symbol=symbol, interval=interval, step=0, total=1)
         from .policy.policy import evaluate_symbol_interval
         res = evaluate_symbol_interval(symbol=symbol, interval=interval) or {}
-        set_progress(f"policy:{job_base}", "OK", symbol=symbol, interval=interval, step=1, total=1, pct=100.0)
+        set_progress(f"policy:{job_base}", "OK", symbol=symbol,
+                     interval=interval, step=1, total=1, pct=100.0)
         log.info(
             "decision %s %s | action=%s E_long=%.3f E_short=%.3f tmpl=%s",
             symbol, interval, str(res.get("action", "HOLD")).upper(),
@@ -156,18 +171,22 @@ def _job_one(symbol: str, interval: str) -> None:
         )
     except Exception as e:
         push_error(f"policy:{job_base}", f"{type(e).__name__}: {e}")
-        set_progress(f"policy:{job_base}", "ERROR", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
+        set_progress(f"policy:{job_base}", "ERROR", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
         return
 
     # 4) executor
     try:
-        set_progress(f"executor:{job_base}", "RUN", symbol=symbol, interval=interval, step=0, total=1)
+        set_progress(f"executor:{job_base}", "RUN",
+                     symbol=symbol, interval=interval, step=0, total=1)
         from .exec.executor import apply_decision
         apply_decision(symbol=symbol, interval=interval, decision=res)
-        set_progress(f"executor:{job_base}", "OK", symbol=symbol, interval=interval, step=1, total=1, pct=100.0)
+        set_progress(f"executor:{job_base}", "OK", symbol=symbol,
+                     interval=interval, step=1, total=1, pct=100.0)
     except Exception as e:
         push_error(f"executor:{job_base}", f"{type(e).__name__}: {e}")
-        set_progress(f"executor:{job_base}", "ERROR", symbol=symbol, interval=interval, step=0, total=1, pct=0.0)
+        set_progress(f"executor:{job_base}", "ERROR", symbol=symbol,
+                     interval=interval, step=0, total=1, pct=0.0)
         return
 
 
@@ -178,7 +197,7 @@ def build_and_start_scheduler() -> BackgroundScheduler:
     db_connect.get_connection().close()
 
     symbols, intervals, enabled = _read_settings()
-        # 啟動當下先整一次 session 狀態，並印出目前 sid
+    # 啟動當下先整一次 session 狀態，並印出目前 sid
     try:
         if enabled == 1:
             create_session_if_needed()
@@ -199,6 +218,7 @@ def build_and_start_scheduler() -> BackgroundScheduler:
     scheduler.start()
     log.info("Scheduler started. tz=%s is_enabled=%s", getattr(TZ, "zone", "system"), enabled)
 
+    # 逐一掛載每個 symbol/interval 的 bar 任務
     for s in symbols:
         for itv in intervals:
             trig, kwargs = _parse_interval(itv)
@@ -219,25 +239,33 @@ def build_and_start_scheduler() -> BackgroundScheduler:
                 push_error(f"scheduler:{s}:{itv}", f"{type(e).__name__}: {e}")
                 log.exception("掛載任務失敗：%s %s | %s", s, itv, e)
 
-    # 每日/每週占位
+    # —— 每日/每週演化任務（注意：放在雙層 for 之外，避免重覆註冊）——
     try:
+        # 直接 import 函式引用，避免 __import__ 誤用
+        from .evolver.evolver import run_once as evolver_run_once, run_weekly as evolver_run_weekly
+
         scheduler.add_job(
-            lambda: __import__('app.evolver.evolver', fromlist=['evolver']).evolver.run_once(),
+            evolver_run_once,
             trigger=CronTrigger(hour=23, minute=55, timezone=TZ) if TZ else CronTrigger(hour=23, minute=55),
             id="daily_evolver",
-            replace_existing=True, coalesce=True, max_instances=1
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
         )
         scheduler.add_job(
-            lambda: __import__('app.evolver.evolver', fromlist=['evolver']).evolver.run_weekly(),
+            evolver_run_weekly,
             trigger=CronTrigger(day_of_week="sun", hour=23, minute=55, timezone=TZ) if TZ else CronTrigger(day_of_week="sun", hour=23, minute=55),
             id="weekly_evolver",
-            replace_existing=True, coalesce=True, max_instances=1
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
         )
     except Exception as e:
         push_error("scheduler:evolver", f"{type(e).__name__}: {e}")
         log.exception("掛載演化任務失敗：%s", e)
 
     return scheduler
+
 
 
 def _parse_interval(interval: str):
@@ -252,7 +280,7 @@ def _parse_interval(interval: str):
 if __name__ == "__main__":
     import time as _t
     sch = build_and_start_scheduler()
-        # 二次保險：主程式入口也建一次並印 sid
+    # 二次保險：主程式入口也建一次並印 sid
     try:
         from .session import create_session_if_needed
         sid = create_session_if_needed()

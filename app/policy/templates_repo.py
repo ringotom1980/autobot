@@ -163,9 +163,15 @@ def upsert_template_stats(template_id: int, regime: int, reward: float) -> None:
 
 def touch_template_last_used(template_id: int, regime: int) -> None:
     exec(
-        "UPDATE template_stats SET last_used_at=UNIX_TIMESTAMP()*1000 WHERE template_id=:t AND regime=:r",
-        t=template_id, r=regime
+        """
+        INSERT INTO template_stats (template_id, regime, last_used_at)
+        VALUES (:t, :r, UNIX_TIMESTAMP()*1000)
+        ON DUPLICATE KEY UPDATE
+          last_used_at = VALUES(last_used_at)
+        """,
+        t=int(template_id), r=int(regime)
     )
+
 
 
 # ---------- Stats 查詢/彙總工具 ----------
@@ -242,26 +248,6 @@ def all_fingerprints() -> set:
     for t in get_all_templates():
         fps.add(template_fingerprint(t))
     return fps
-
-# ---------- Evolution event 記錄 ----------
-
-def insert_evolution_event(action: str,
-                           source_template_ids: Optional[List[int]] = None,
-                           new_template_id: Optional[int] = None,
-                           notes: Optional[str] = None) -> None:
-    """
-    寫入 evolution_events（ts 使用 DB 的 UNIX_TIMESTAMP()*1000）
-    action: 'MUTATE' | 'CROSS' | 'RANDOM' | 'FREEZE' | 'UNFREEZE'
-    """
-    src = ",".join(str(x) for x in (source_template_ids or [])) or None
-    exec(
-        """
-        INSERT INTO evolution_events(ts, action, source_template_ids, new_template_id, notes)
-        VALUES (UNIX_TIMESTAMP()*1000, :a, :src, :nid, :nt)
-        """,
-        a=action, src=src, nid=new_template_id, nt=notes
-    )
-
 
 # ---------- Evolution event 記錄 ----------
 

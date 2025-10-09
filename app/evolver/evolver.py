@@ -7,12 +7,14 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from ..policy import templates_repo as repo
 from ..policy import templates_eval as te
+from ..reporter.heartbeat import set_progress, push_error
+
 
 log = logging.getLogger("autobot.evolver")
 
 # -------------------- 可調參數 --------------------
-TARGET_ACTIVE = 24          # 目標活躍模板數
-TOP_PARENTS = 6             # 每輪擇優父代數量
+TARGET_ACTIVE = 200          # 目標活躍模板數
+TOP_PARENTS = 20             # 每輪擇優父代數量
 MUTANTS_PER_PARENT = 2      # 每個父代產生多少變異
 FREEZE_MIN_N = 20           # 凍結的最小交易數
 LCB_Z = 1.0                 # LCB 檢查強度
@@ -350,6 +352,7 @@ def run_weekly() -> Dict[str, Any]:
     2) 交叉生成子代，補齊到 TARGET_ACTIVE
     3) 若仍超量或策略過密，做清池（保留 TARGET_ACTIVE）
     """
+    set_progress("evolver:weekly", "RUN", step=0, total=1)
     actives = repo.get_active_templates()
     summaries = repo.get_all_templates_summary(active_only=True)
 
@@ -380,6 +383,7 @@ def run_weekly() -> Dict[str, Any]:
         "active_after": repo.count_active_templates()
     }
     log.info(f"[evolver.weekly] result={result}")
+    set_progress("evolver:weekly", "OK", step=1, total=1, pct=100.0)
     return result
 
 
@@ -392,6 +396,8 @@ def run_once() -> Dict[str, Any]:
     3) 依 bandit 排名選父代
     4) 生成子代補齊活躍模板數量
     """
+    set_progress("evolver:daily", "RUN", step=0, total=1)
+
     actives = repo.get_active_templates()
     summaries = repo.get_all_templates_summary(active_only=True)
     # 記錄凍結前的活躍清單 & 數量（用於回報與後備父代）
@@ -441,6 +447,7 @@ def run_once() -> Dict[str, Any]:
     }
 
     log.info(f"[evolver] result={result}")
+    set_progress("evolver:daily", "OK", step=1, total=1, pct=100.0)
     return result
 
 

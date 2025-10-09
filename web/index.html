@@ -175,6 +175,45 @@
       </div>
     </section>
 
+        <!-- 區塊 3.5：近10次交易 / 全部交易（可分頁） -->
+    <section class="card" id="tradesBlock">
+      <div class="row ai-center">
+        <h2 class="m0">交易紀錄</h2>
+        <div class="spacer"></div>
+        <button id="btnToggleTrades" type="button" class="btn">顯示更多</button>
+      </div>
+
+      <!-- 表格容器 -->
+      <div class="mt-12" style="overflow:auto;">
+        <table id="tradesTable" class="table" style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:8px;">時間</th>
+              <th style="text-align:left; padding:8px;">交易別</th>
+              <th style="text-align:right; padding:8px;">買進價</th>
+              <th style="text-align:right; padding:8px;">買出價</th>
+              <th style="text-align:right; padding:8px;">模板ID</th>
+              <th style="text-align:right; padding:8px;">獲利(USD)</th>
+            </tr>
+          </thead>
+          <tbody id="tradesBody">
+            <!-- JS 動態填入 -->
+          </tbody>
+        </table>
+        <div id="tradesEmpty" class="muted mt-8" style="display:none;">尚無交易資料</div>
+      </div>
+
+      <!-- 分頁（只在「顯示更多」模式出現） -->
+      <div id="tradesPager" class="row ai-center mt-12" style="display:none;">
+        <button id="pgPrev" class="btn" type="button">上一頁</button>
+        <div class="spacer"></div>
+        <div class="muted" id="pgInfo">第 1 / 1 頁</div>
+        <div class="spacer"></div>
+        <button id="pgNext" class="btn" type="button">下一頁</button>
+      </div>
+    </section>
+
+
     <!-- 區塊 4：績效 -->
     <section class="grid perf-grid">
       <!-- 目前獲利 = 本次 Session -->
@@ -258,9 +297,9 @@
     </div>
   </div>
 
-  <script src="assets/js/app.js?v=18"></script>
-  <script src="assets/js/metrics.js?v=3"></script>
-
+  <script src="assets/js/app.js?v=19"></script>
+  <script src="assets/js/metrics.js?v=4"></script>
+  <script src="assets/js/trades.js?v=2"></script>
 </body>
 
 </html>
