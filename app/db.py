@@ -52,20 +52,22 @@ def _build_engine() -> Engine:
     # 建 Engine：開啟 pre_ping + 較短 recycle + 連線逾時
     return create_engine(
         _make_url(cfg),
-        pool_pre_ping=True,          # 取用前先 SELECT 1
-        pool_recycle=180,            # ★ 3 分內主動回收，低於常見 wait_timeout
+        pool_pre_ping=True,
+        pool_recycle=180,
         pool_size=5,
         max_overflow=10,
         pool_reset_on_return="rollback",
+        pool_timeout=10,                 # ★ 借連線拿不到時最多等 10s
         future=True,
-        connect_args={               # ★ 防卡死
+        connect_args={
             "connect_timeout": 10,
-            "read_timeout": 10,
-            "write_timeout": 10,
+            "read_timeout": 20,          # ★ 放寬，避免瞬時抖動誤判
+            "write_timeout": 20,
             "charset": "utf8mb4",
         },
         isolation_level="AUTOCOMMIT",
     )
+
 
 
 def engine() -> Engine:
@@ -78,42 +80,44 @@ def engine() -> Engine:
     return _engine
 
 
-def _retryable_exec(sql: str, params, *, retry_once: bool = True) -> Result:
+def _retryable_exec(sql: str, params, *, max_retries: int = 2) -> Result:
     global _engine
-    try:
-        with engine().connect() as conn:
-            res: Result = conn.execute(text(sql), params)
-            # AUTOCOMMIT 已開，這行留著也無害
-            conn.commit()
-            return res
-    except (OperationalError, InterfaceError) as e:
-        if not retry_once:
-            raise
-        log.warning("DB 連線異常，嘗試自動重試一次：%s", e)
-
-        # 1) 先確保隧道
+    delay = 0.8
+    attempt = 0
+    while True:
         try:
-            db_connect.get_connection().close()
-        except Exception as ee:
-            log.error("重啟 SSH 隧道失敗：%s", ee)
+            with engine().connect() as conn:
+                res: Result = conn.execute(text(sql), params)
+                conn.commit()
+                return res
+        except (OperationalError, InterfaceError) as e:
+            msg = str(e).lower()
+            lost = ("lost connection" in msg or "server has gone away" in msg
+                    or "is not connected" in msg or "timeout" in msg)
+            if not lost or attempt >= max_retries:
+                raise
+            log.warning("DB 連線問題，%.1fs 後重試（%d/%d）: %s", delay, attempt+1, max_retries, e)
 
-        # 2) 丟棄舊池
-        try:
-            if _engine is not None:
-                _engine.dispose(close=True)
-        except Exception:
-            pass
+            # 先確保隧道
+            try:
+                db_connect.get_connection().close()
+            except Exception as ee:
+                log.warning("確保 SSH 隧道失敗: %s", ee)
 
-        # 3) 重建 Engine，並給一點緩衝時間
-        _engine = _build_engine()
-        import time; time.sleep(0.3)
+            # 丟棄舊池、重建
+            try:
+                if _engine is not None:
+                    _engine.dispose(close=True)
+            except Exception:
+                pass
+            _engine = _build_engine()
 
-        # 4) 再試一次
-        with engine().connect() as conn:
-            res: Result = conn.execute(text(sql), params)
-            conn.commit()
-            return res
+            import time
+            time.sleep(delay)
+            delay = min(delay * 1.8, 5.0)
+            attempt += 1
+
 
 
 def exec(sql: str, /, **params) -> Result:
-    return _retryable_exec(sql, params, retry_once=True)
+    return _retryable_exec(sql, params, max_retries=2)

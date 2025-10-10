@@ -167,6 +167,12 @@ def try_policy(symbol: str, interval: str) -> Dict[str, Any]:
 
 # ---- 主循環 ----
 def one_cycle() -> None:
+    # ★ 每輪先確保隧道活著（輕量檢查）
+    try:
+        db_connect.ensure_tunnel_alive()
+    except Exception as _e:
+        log.warning("ensure_tunnel_alive 失敗：%s", _e)
+
     st = read_settings()
         # ★ session 維護：依 is_enabled 自動建立/結束
     try:
@@ -244,7 +250,7 @@ def one_cycle() -> None:
 def main():
     log.info("Autobot shadow mode start. timezone=%s", getattr(Config, "TIMEZONE", "Asia/Taipei"))
     db_connect.get_connection().close()  # 啟隧道
-        # ★ 啟動當下保險：先建/先收一次 session
+    # ★ 啟動當下保險：先建/先收一次 session
     try:
         en = int(exec("SELECT is_enabled FROM settings WHERE id=1").scalar() or 0)
         if en == 1:
@@ -258,6 +264,11 @@ def main():
     PERIOD = 60  # 每 60 秒一輪
     while True:
         t0 = time.time()
+        # ★★ 迴圈層再做一次保險（和 one_cycle 內的檢查彼此獨立）
+        try:
+            db_connect.ensure_tunnel_alive()
+        except Exception as _e:
+            log.warning("ensure_tunnel_alive(main loop) 失敗：%s", _e)
         try:
             one_cycle()
         except Exception as e:

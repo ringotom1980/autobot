@@ -6,36 +6,66 @@ from ..db import exec
 # -------- 低階：寫入 job_progress --------
 def set_progress(job_id: str, phase: str, *, symbol: str = "", interval: str = "",
                  step: int = 0, total: int = 1, pct: float | None = None) -> None:
+    from .. import db_connect  # 確保隧道存活（輕量）
+    try:
+        db_connect.get_connection().close()
+    except Exception:
+        pass
     step_i = max(int(step), 0)
     total_i = max(int(total), 1)
     pct_v = float(round(100.0 * min(step_i / total_i, 1.0), 1)) if pct is None else float(pct)
-    exec("""
-        INSERT INTO job_progress(job_id, phase, symbol, `interval`, step, total, pct)
-        VALUES(:id, :ph, :s, :i, :st, :tt, :pc)
-        ON DUPLICATE KEY UPDATE
-          phase=VALUES(phase),
-          symbol=VALUES(symbol),
-          `interval`=VALUES(`interval`),
-          step=VALUES(step),
-          total=VALUES(total),
-          pct=VALUES(pct),
-          updated_at=CURRENT_TIMESTAMP
-    """, id=job_id[:64], ph=phase[:32], s=symbol[:16], i=interval[:8],
-       st=step_i, tt=total_i, pc=pct_v)
+    try:
+        exec("""
+            INSERT INTO job_progress(job_id, phase, symbol, `interval`, step, total, pct)
+            VALUES(:id, :ph, :s, :i, :st, :tt, :pc)
+            ON DUPLICATE KEY UPDATE
+              phase=VALUES(phase),
+              symbol=VALUES(symbol),
+              `interval`=VALUES(`interval`),
+              step=VALUES(step),
+              total=VALUES(total),
+              pct=VALUES(pct),
+              updated_at=CURRENT_TIMESTAMP
+        """, id=job_id[:64], ph=phase[:32], s=symbol[:16], i=interval[:8],
+           st=step_i, tt=total_i, pc=pct_v)
+    except Exception as _e:
+        # 心跳失敗不應中斷主流程
+        import logging
+        logging.getLogger("autobot.heartbeat").warning("set_progress 寫入失敗（忽略）: %s", _e)
 
 
 # -------- 低階：寫入 risk_journal（以 JOB:<id> 為 rule）--------
 def push_error(job_id: str, detail: str, level: str = "CRIT") -> None:
-    exec(
-        "INSERT INTO risk_journal(ts, rule, detail, level) VALUES(UNIX_TIMESTAMP()*1000, :r, :d, :l)",
-        r=f"JOB:{job_id}"[:64], d=detail[:255], l="CRIT" if level not in ("INFO","WARN","CRIT") else level
-    )
+    from .. import db_connect
+    try:
+        db_connect.get_connection().close()
+    except Exception:
+        pass
+    try:
+        exec(
+            "INSERT INTO risk_journal(ts, rule, detail, level) VALUES(UNIX_TIMESTAMP()*1000, :r, :d, :l)",
+            r=f"JOB:{job_id}"[:64], d=detail[:255], l="CRIT" if level not in ("INFO","WARN","CRIT") else level
+        )
+    except Exception as _e:
+        import logging
+        logging.getLogger("autobot.heartbeat").warning("push_error 寫入失敗（忽略）: %s", _e)
+
 
 def push_info(job_id: str, detail: str) -> None:
-    exec(
-        "INSERT INTO risk_journal(ts, rule, detail, level) VALUES(UNIX_TIMESTAMP()*1000, :r, :d, 'INFO')",
-        r=f"JOB:{job_id}"[:64], d=detail[:255]
-    )
+    from .. import db_connect
+    try:
+        db_connect.get_connection().close()
+    except Exception:
+        pass
+    try:
+        exec(
+            "INSERT INTO risk_journal(ts, rule, detail, level) VALUES(UNIX_TIMESTAMP()*1000, :r, :d, 'INFO')",
+            r=f"JOB:{job_id}"[:64], d=detail[:255]
+        )
+    except Exception as _e:
+        import logging
+        logging.getLogger("autobot.heartbeat").warning("push_info 寫入失敗（忽略）: %s", _e)
+
 
 # -------- 高階：decorator（包住任何 job）--------
 def with_heartbeat(job_id: str, *, symbol: str = "", interval: str = ""):

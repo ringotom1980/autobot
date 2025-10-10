@@ -182,11 +182,17 @@ class _ParamikoTunnel:
         self.client = c
         self.transport = c.get_transport()
         if self.transport:
-            # 開啟 TCP keepalive（每 30 秒）
             try:
-                self.transport.set_keepalive(30)
+                self.transport.set_keepalive(15)  # ★ 每 15s 一次 SSH-level keepalive
             except Exception:
                 pass
+            # ★ 盡量開啟 OS 層 keepalive（Windows 只能打開開關，間隔由系統決定）
+            try:
+                sock = self.transport.sock
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            except Exception:
+                pass
+
 
         # 3/3 啟動本機轉發
         self.forwarder = _ForwardServer(
@@ -283,3 +289,19 @@ def ssh_mysql_tunnel():
     finally:
         # 常駐模式：不自動 stop；若要離開即關閉可改成 _tunnel.stop()
         pass
+
+def ensure_tunnel_alive() -> None:
+    """
+    提供外部週期呼叫：若隧道/transport 不活躍就重建。
+    """
+    global _tunnel
+    with _tunnel_lock:
+        need_reopen = True
+        try:
+            if _tunnel and _tunnel.transport and _tunnel.transport.is_active():
+                need_reopen = False
+        except Exception:
+            need_reopen = True
+        if need_reopen:
+            # 重建
+            _ensure_tunnel()
