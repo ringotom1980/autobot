@@ -56,6 +56,17 @@
     return side === 'LONG' ? '買多' : (side === 'SHORT' ? '買空' : side || '-');
   }
 
+  function sideBadge(side) {
+  const txt = sideLabel(side);                 // 轉成「買多 / 買空」
+  const cls = (txt === '買多')
+    ? 'trade-side trade-long'
+    : (txt === '買空')
+      ? 'trade-side trade-short'
+      : 'trade-side';
+  return `<span class="${cls}">${txt}</span>`;
+}
+
+
   function renderRows(rows) {
     if (!rows || rows.length === 0) {
       el.tableBody.innerHTML = '';
@@ -67,7 +78,7 @@
       return `
         <tr>
           <td style="padding:8px; text-align:center;">${fmtTs(r.exit_ts || r.entry_ts)}</td>
-          <td style="padding:8px; text-align:center;">${sideLabel(r.side)}</td>
+          <td style="padding:8px; text-align:center;">${sideBadge(r.side)}</td>
           <td style="padding:8px; text-align:center;">${fmtPx(r.entry_price)}</td>
           <td style="padding:8px; text-align:center;">${fmtPx(r.exit_price)}</td>
           <td style="padding:8px; text-align:center;">${r.template_id ?? '-'}</td>

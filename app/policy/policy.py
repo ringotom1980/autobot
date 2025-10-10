@@ -14,11 +14,8 @@ log = logging.getLogger("autobot.policy")
 _EPS = 1e-9
 _MAX_SCORE = 1e6  # 防爆上限，避免無限大造成下游混亂
 
-# 可微調的 baseline（當沒有任何模板匹配時使用）
-_BASELINE_TPL = {
-    "LONG": 1,   # 你的種子：baseline long
-    "SHORT": 2,  # 你的種子：baseline short
-}
+# 移除對 baseline 模板的依賴（HOLD 不再寫 baseline tid）
+_BASELINE_TPL = {}
 
 # Bandit 參數（與 evolver 保持一致）
 _UCB_C = 2.0
@@ -67,7 +64,7 @@ def _avg(vals: List[float], default: float = 0.0) -> float:
 
 # === 新增：動態門檻工具 ===
 
-def _recent_gap_quantile(symbol: str, interval: str, n: int = 300, q: float = 0.75) -> Optional[float]:
+def _recent_gap_quantile(symbol: str, interval: str, n: int = 300, q: float = 0.60) -> Optional[float]:
     """
     從 decisions_log 取最近 n 筆的 gap=|E_long - E_short|，回傳分位數 q。
     不足（<50 筆）則回 None。
@@ -86,21 +83,20 @@ def _recent_gap_quantile(symbol: str, interval: str, n: int = 300, q: float = 0.
     k = max(0, min(int(len(vals) * float(q)), len(vals)-1))
     return float(vals[k])
 
-def _dynamic_entry_threshold(symbol: str, interval: str, feats: List[Dict[str, Any]],
-                             alpha: float = 0.9) -> float:
+def _dynamic_entry_threshold(symbol: str, interval: str, feats: List[Dict[str, Any]]) -> float:
     """
     動態門檻：
-    1) 先用 decisions_log 的 P75(gap) × alpha
+    1) 先用 decisions_log 的 P60 無 alpha
     2) 若樣本不足，用 ATR 尺度 fallback（對齊你目前 E 的量級）
     """
-    q = _recent_gap_quantile(symbol, interval, n=300, q=0.75)
+    q = _recent_gap_quantile(symbol, interval, n=300, q=0.60)
     if q is not None and q > 0:
-        return float(q) * float(alpha)
+        return float(q)
 
     # fallback: 用 ATR 尺度估（你現在 E 是用 atr_pct 當風險分母，量級很大）
     k = min(50, len(feats))
     atr_mean = _avg([r.get("atr_pct", 0.0) for r in feats[:k]], 0.0)
-    scale = 2_000_000.0  # 如要更保守可調大；更積極調小
+    scale = 2_000_000.0  # fallback 尺度維持不變
     return max(1.0, float(atr_mean) * scale)
 
 
@@ -166,15 +162,16 @@ def _select_template(side: str, last_feat: Dict[str, Any]) -> int:
 
     # 4) 若無匹配，回 baseline
     if not matched:
-        baseline = _BASELINE_TPL.get(side)
-        if baseline is None:
-            # 萬一 baseline 沒設到這個 side，就挑第一個同 side 的 active
-            for t in actives:
-                if t.get("side") == side:
-                    return int(t["template_id"])
-            # 還是沒有就硬回 1
-            return 1
-        return int(baseline)
+    # 優先找同 side 的 ACTIVE
+        for t in actives:
+            if t.get("side") == side:
+                return int(t["template_id"])
+    # 再退而求其次找任一 ACTIVE
+        if actives:
+            return int(actives[0]["template_id"])
+    # 真的沒有可用模板 → 回 None 讓上層處理（不進場或記錄）
+        return None
+
 
     # 5) 用 bandit 分數選最佳
     best_score = -float("inf")
@@ -205,34 +202,34 @@ def evaluate_symbol_interval(symbol: str, interval: str) -> Dict[str, Any]:
     """
     feats = _fetch_recent_features(symbol, interval, n=50)
     if not feats:
-        return {"action": "HOLD", "E_long": 0.0, "E_short": 0.0, "template_id": _BASELINE_TPL["LONG"]}
+        return {"action": "HOLD", "E_long": 0.0, "E_short": 0.0, "template_id": None}
 
     action, E_long, E_short = _decide_direction(feats)
     # === 新增：用動態門檻覆蓋 action（gap 不夠大 → HOLD） ===
     gap = abs(float(E_long) - float(E_short))
-    th = _dynamic_entry_threshold(symbol, interval, feats, alpha=0.9)  # 0.8~1.2 可微調
+    th = _dynamic_entry_threshold(symbol, interval, feats)
     if gap < th:
         action = "HOLD"
 
     last = feats[0]  # 最新一根
     regime = int(_finite(last.get("regime"), 0))
 
-    # HOLD 時：你可以選擇回傳 0；這裡先用 LONG baseline，方便下游統計
+    # HOLD：不再寫 baseline template（避免污染與觸發不存在模板）
     if action == "HOLD":
-        tpl_id = _BASELINE_TPL.get("LONG", 1)
-        try:
-            repo.touch_template_last_used(tpl_id, regime)
-        except Exception as e:
-            log.warning(f"touch baseline template failed: {e}")
+        
         return {
             "action": "HOLD",
             "E_long": E_long,
             "E_short": E_short,
-            "template_id": int(tpl_id),
+            "template_id": None,
         }
 
     # LONG / SHORT → 用模板系統挑 id
     tpl_id = _select_template(action, last)
+    if tpl_id is None:
+        # 找不到可用模板就不開倉，直接轉成 HOLD 回報
+        return {"action": "HOLD", "E_long": E_long, "E_short": E_short, "template_id": None}
+
 
     # 更新該模板的 last_used_at（不在這裡更新 reward，reward 應由成交/平倉時寫入）
     try:

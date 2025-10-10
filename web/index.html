@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Autobot 儀表板</title>
-  <link rel="stylesheet" href="assets/css/style.css?v=13" />
+  <link rel="stylesheet" href="assets/css/style.css?v=19" />
   <link rel="icon" type="image/png" href="assets/img/favicon.png">
 
 </head>
@@ -54,7 +54,6 @@
       </div>
 
       <div class="card mt-12">
-        <div class="grid-2">
           <div class="mb-12">
             <label>交易模式｜Trade Mode</label>
             <select id="tradeMode">
@@ -63,7 +62,6 @@
             </select>
             <div class="label-sm">當選擇真實下單時，需勾選下方「二次保險」才會真的下單。</div>
           </div>
-        </div>
 
         <!-- 只有 LIVE 時才顯示 -->
         <div id="liveArmedBlock">
@@ -93,41 +91,47 @@
             <div class="full">
               <div class="row ai-center" style="gap:8px; margin-bottom:8px;">
                 <input id="exitHorizonAuto" type="checkbox" style="width:auto; margin:0;" />
-                <label for="exitHorizonAuto" class="m0">自動學習出場上限（k_max）</label>
+                <label for="exitHorizonAuto" class="m0">自動學習持有棒數</label>
               </div>
               <small class="muted">
-                依最近成交持有棒數分佈（預設 P90，近 100 筆）動態調整 max_hold_bars；會受「最小持有棒數」與系統上限夾住。
+                勾選後會動態調整持有K棒數，但會受「最小持有棒數」與系統上限限制。
               </small>
             </div>
 
             <div>
-              <label>單筆最大風險（max_risk_pct）</label>
+              <label>單筆虧損比例上限</label>
               <input id="max_risk_pct" type="number" step="0.0001" min="0" max="1" placeholder="0.01" />
-              <small class="muted">ATR 倉位上限，例 0.01＝1%</small>
+              <small class="muted">例 0.01＝佔資金1%</small>
             </div>
             <div>
-              <label>單日最大回撤（max_daily_dd_pct）</label>
+              <label>單日虧損比例上限</label>
               <input id="max_daily_dd_pct" type="number" step="0.0001" min="0" max="1" placeholder="0.03" />
+              <small class="muted">例 0.01＝佔資金1%</small>
             </div>
             <div>
-              <label>最大連虧次數（max_consec_losses）</label>
+              <label>最大連續虧損次數</label>
               <input id="max_consec_losses" type="number" step="1" min="0" placeholder="4" />
+              <small class="muted">達到設定次數自動停止程式，需重新啟動程式</small>
             </div>
             <div>
-              <label>進場閾值（entry_threshold）</label>
+              <label>進場強度（範圍0~1）</label>
               <input id="entry_threshold" type="number" step="0.01" min="0" max="5" placeholder="0.3" />
+              <small class="muted">超過1會失效，0.3-0.5屬一般，數值越高進場越頻繁</small>
             </div>
             <div>
-              <label>反向差值（reverse_gap）</label>
+              <label>反向差值</label>
               <input id="reverse_gap" type="number" step="0.01" min="0" max="5" placeholder="0.2" />
+              <small class="muted">超過1會失效，0.2為中間值，數值越低反向操作頻繁</small>
             </div>
             <div>
-              <label>冷卻棒數（cooldown_bars）</label>
+              <label>冷卻棒數</label>
               <input id="cooldown_bars" type="number" step="1" min="0" placeholder="2" />
+              <small class="muted">平倉後機器人休息時間</small>
             </div>
             <div>
-              <label>最小持有棒數（min_hold_bars）</label>
+              <label>最小持有棒數</label>
               <input id="min_hold_bars" type="number" step="1" min="0" placeholder="2" />
+              <small class="muted">持倉後機器人最小持有時間</small>
             </div>
           </div>
           <small class="muted">※ 只有勾選「進階風控」才會在啟動時一併套用以上參數。</small>
@@ -299,7 +303,7 @@
 
   <script src="assets/js/app.js?v=19"></script>
   <script src="assets/js/metrics.js?v=4"></script>
-  <script src="assets/js/trades.js?v=2"></script>
+  <script src="assets/js/trades.js?v=5"></script>
 </body>
 
 </html>

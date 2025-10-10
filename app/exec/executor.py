@@ -9,6 +9,8 @@ from ..learner.rewards import book_trade
 from ..risk.sizing import size_by_atr
 from ..risk.guards import should_block_entry, should_exit, journal
 from ..binance.fut_client import FutClient
+from ..learner.horizon import get_overrides
+
 
 # -------------------------------------------------
 # 常見 bar 時長（毫秒）
@@ -535,6 +537,15 @@ def apply_decision(symbol: str, interval: str, decision: Dict[str, Any]) -> None
         prev_peak = float(cur_pos.get("peak_price") or entry_px)
 
         es = _exit_settings()
+        # 先吃 policy_overrides（若有） → 讓「學到的 k」生效
+        tpl_id = int(cur_pos.get("template_id") or 0)
+        regime = int(cur_pos.get("regime_entry") or _latest_regime(symbol, interval))
+        ovr = get_overrides(symbol, interval, tpl_id, regime)
+        if ovr and ovr.get("max_hold_bars") is not None:
+            es["max_hold_bars"] = int(ovr["max_hold_bars"])
+            journal("POLICY_OVERRIDE",
+                    f"apply max_hold_bars={es['max_hold_bars']} (tid={tpl_id}, regime={regime})",
+                    "INFO")
 
         # —— 動態學習 k_max（= max_hold_bars），完全獨立於 adv_enabled ——
         risk = _settings_risk(symbol)  # 只為了拿 min_hold_bars 下界，不管開關
@@ -553,12 +564,14 @@ def apply_decision(symbol: str, interval: str, decision: Dict[str, Any]) -> None
             )
 
             if dyn_k is not None:
-                es["max_hold_bars"] = int(dyn_k)
-                journal(
-                    "AUTO_KMAX",
-                    f"dyn_k={dyn_k} (min_hold={risk.get('min_hold_bars')}, static_max={old_static})",
-                    "INFO"
-                )
+                if es["max_hold_bars"] is not None:
+                    es["max_hold_bars"] = min(int(es["max_hold_bars"]), int(dyn_k))
+                else:
+                    es["max_hold_bars"] = int(dyn_k)
+                journal("AUTO_KMAX",
+                        f"dyn_k={dyn_k} (override_applied={ovr.get('max_hold_bars') if ovr else None})",
+                        "INFO")
+
 
         hit, rsn, new_peak = should_exit(
             direction=cur_side,

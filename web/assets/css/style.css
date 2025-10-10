@@ -187,3 +187,104 @@ input, select{ width: 100%; padding: 8px; border-radius: 8px; border: 1px solid 
 
 /* 讓 canvas 不會模糊（搭配 JS 裡的 DPR 調整） */
 canvas{ width:100%; height:auto; display:block; }
+
+/* === 交易紀錄表格：貼齊卡片左右邊 === */
+#tradesBlock .mt-12 {
+  overflow: hidden;              /* 避免出現底部橫向卷軸 */
+}
+
+#tradesTable {
+  border-collapse: collapse;
+  width: calc(100% + 32px);      /* 原寬 + 左右各 16px */
+  transform: translateX(-16px);  /* 向左位移 16px，剛好貼齊卡片左邊 */
+}
+
+#tradesTable th,
+#tradesTable td {
+  padding: 8px;
+  text-align: center;
+}
+
+/* 交易統計三卡：內容水平置中 */
+.stat-grid .stat-card{
+  align-items: center;     /* 水平置中（因為是 flex、直向排列） */
+  justify-content: center; /* 垂直置中（可選） */
+  text-align: center;      /* 文字置中 */
+}
+
+/* 標題與數字都置中保險 */
+.stat-grid .stat-card .stat-title,
+.stat-grid .stat-card .stat-num{
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 讓三卡高度更一致（可選） */
+.stat-grid .stat-card{ min-height: 100px; }
+
+/* === 績效三卡：內容水平置中（不影響其他卡片） === */
+.perf-grid > .card{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 垂直置中，可留可拿掉 */
+  align-items: center;       /* 水平置中 */
+  text-align: center;        /* 文字置中 */
+  min-height: 140px;         /* 視覺一致（可調） */
+}
+
+/* 標題、數字、補充文字的間距微調（可選） */
+.perf-grid > .card h3{ margin: 0 0 8px; }
+.perf-grid > .card .big{ margin: 4px 0; }
+.perf-grid > .card .muted{ margin-top: 6px; }
+
+/* 手機：交易紀錄表格改成橫向捲動，避免內容被擠壓 */
+@media (max-width: 768px){
+  /* 外層容器允許水平捲動，左右邊界收斂一點 */
+  #tradesBlock .mt-12{
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-left: -12px;   /* 手機邊距較窄，別用 -16 */
+    margin-right: -12px;
+  }
+
+  /* 表格不要再用位移撐滿，回歸自然寬度並設定最小寬 */
+  #tradesTable{
+    transform: none;
+    width: auto;
+    min-width: 720px;     /* 可改 640~760 視情況 */
+    border-collapse: collapse;
+  }
+
+  /* 儲存格不換行，保留單行數字與時間 */
+  #tradesTable th,
+  #tradesTable td{
+    white-space: nowrap;
+    padding: 10px 8px;    /* 手機稍微加高行距便於點選 */
+    text-align: center;
+  }
+}
+
+/* 買多 / 買空 標籤底色（半透明柔化版） */
+.trade-side{
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:6px;
+  font-weight:600;
+  min-width:42px;
+  text-align:center;
+  color:#fff;
+}
+
+/* 粉紅底（買多） */
+.trade-long{
+  background: rgba(252, 162, 190, 0.3);  /* 原 #fca2be，加透明度 30% */
+  color: rgb(255, 170, 185);             /* 字色偏亮粉，搭配深背景 */
+}
+
+/* 粉綠底（買空） */
+.trade-short{
+  background: rgba(196, 248, 217, 0.3);  /* 原 #c4f8d9，加透明度 30% */
+  color: rgb(170, 255, 200);             /* 字色偏亮綠，柔和對比 */
+}
+
