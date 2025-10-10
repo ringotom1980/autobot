@@ -288,3 +288,52 @@ canvas{ width:100%; height:auto; display:block; }
   color: rgb(170, 255, 200);             /* 字色偏亮綠，柔和對比 */
 }
 
+/* 表格版：目前動作 */
+.now-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.now-table th,
+.now-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #24324d;
+}
+.now-table th {
+  width: 120px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.now-table td {
+  text-align: left; /* 與交易紀錄一致 */
+}
+
+/* 等寬數字（價格/金額更漂亮） */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* 動作徽章：買多 / 買空 / 觀望（沿用你 JS 的 badgeAction 輸出） */
+.badge-act{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+.badge-act.long  { background: rgba(252,162,190,.25); color:#ffb7c7; } /* 買多：粉紅 */
+.badge-act.short { background: rgba(196,248,217,.25); color:#b8ffd6; } /* 買空：粉綠 */
+.badge-act.hold  { background: rgba(155,166,190,.20); color:#cbd6ee; } /* 觀望：灰藍 */
+
+/* PnL 顏色（正紅負綠，0 灰）－對應你 JS 的 pnl-pos/neg/zero */
+.pnl-pos  { color:#e74c3c; }
+.pnl-neg  { color:#2ecc71; }
+.pnl-zero { opacity:.85; }
+
+/* 讓大字在表格裡也不突兀 */
+.now-table .big { font-size: 20px; }
+@media (max-width: 560px){
+  .now-table th { width: 90px; }
+  .now-table .big { font-size: 18px; }
+}

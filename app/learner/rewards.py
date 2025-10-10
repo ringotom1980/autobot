@@ -142,7 +142,7 @@ def book_trade(
                 symbol=symbol, interval=interval, template_id=template_id, regime=int(regime),
                 entry_ts=int(entry_ts), exit_ts=int(exit_ts),
                 direction=direction, entry_price=float(entry_price), qty_abs=abs(float(qty)),
-                k_min=1, k_max=12   # 先用 1~12 根搜尋，可再調
+                k_min=2, k_max=36   # 先用 1~12 根搜尋，可再調
             )
     except Exception:
         pass

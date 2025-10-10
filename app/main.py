@@ -8,6 +8,9 @@ from . import db_connect  # 確保隧道
 from .exec.executor import apply_decision
 from .reporter.heartbeat import set_progress, push_error
 from .session import create_session_if_needed, close_session_if_needed
+from .scheduler import build_and_start_scheduler  # ← 新增：啟動 APScheduler（含 daily/weekly evolver）
+
+_SCHED = None  # ← 新增：保存 scheduler 參考，避免被垃圾回收
 
 
 logging.basicConfig(
@@ -250,6 +253,17 @@ def one_cycle() -> None:
 def main():
     log.info("Autobot shadow mode start. timezone=%s", getattr(Config, "TIMEZONE", "Asia/Taipei"))
     db_connect.get_connection().close()  # 啟隧道
+    # === 新增：啟動 APScheduler（會自動掛載 bar 任務 + daily/weekly evolver）===
+    global _SCHED
+    if _SCHED is None:
+        try:
+            _SCHED = build_and_start_scheduler(only_evolver=True)
+            set_progress("scheduler", "OK", step=1, total=1, pct=100.0)
+            log.info("APScheduler 啟動完成（含 daily_evolver / weekly_evolver）")
+        except Exception as e:
+            push_error("scheduler:start", f"{type(e).__name__}: {e}")
+            log.exception("APScheduler 啟動失敗：%s", e)
+
     # ★ 啟動當下保險：先建/先收一次 session
     try:
         en = int(exec("SELECT is_enabled FROM settings WHERE id=1").scalar() or 0)

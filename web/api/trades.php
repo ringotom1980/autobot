@@ -12,7 +12,7 @@ try {
     $stmtSid = $pdo->query("SELECT current_session_id FROM settings WHERE id=1");
     $sid = $stmtSid ? $stmtSid->fetchColumn() : null;
 
-    if ($sid === null || $sid === '' ) {
+    if ($sid === null || $sid === '') {
         // 後備：如果 settings 還沒寫，抓 trades_log 裡最新的 session_id
         $stmtSid2 = $pdo->query("SELECT session_id FROM trades_log ORDER BY id DESC LIMIT 1");
         $sid = $stmtSid2 ? $stmtSid2->fetchColumn() : null;
@@ -68,6 +68,73 @@ try {
         exit;
     }
 
+    if ($mode === 'now') {
+        // 基本條件
+        $where = [];
+        $args  = [];
+
+        if ($sid !== null && $sid !== '') {
+            $where[] = 'session_id = :sid';
+            $args[':sid'] = $sid;
+        }
+        if ($symbol !== '') {
+            $where[] = 'symbol = :s';
+            $args[':s'] = $symbol;
+        }
+        if ($interval !== '') {
+            $where[] = '`interval` = :i';
+            $args[':i'] = $interval;
+        }
+        $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+        // 1) 最新價格（時間用 close_time）
+        $stmtPx = $pdo->prepare("SELECT close_time, close FROM candles WHERE symbol=:s AND `interval`=:i ORDER BY close_time DESC LIMIT 1");
+        $stmtPx->execute([':s' => $symbol, ':i' => $interval]);
+        $rowPx = $stmtPx->fetch(PDO::FETCH_ASSOC);
+        $lastTs   = $rowPx ? (int)$rowPx['close_time'] : null;
+        $lastPx   = $rowPx ? (float)$rowPx['close']      : null;
+
+        // 2) 最新決策（本 session）
+        $sqlDec = "SELECT action, ts FROM decisions_log $whereSql ORDER BY ts DESC LIMIT 1";
+        $stmtDec = $pdo->prepare($sqlDec);
+        foreach ($args as $k => $v) $stmtDec->bindValue($k, $v);
+        $stmtDec->execute();
+        $rowDec = $stmtDec->fetch(PDO::FETCH_ASSOC);
+        $action = $rowDec ? strtoupper($rowDec['action']) : 'HOLD';
+        if ($rowDec && $rowDec['ts']) {
+            $lastTs = max($lastTs ?? 0, (int)$rowDec['ts']);
+        }
+
+        // 3) 是否持倉（同 symbol / interval）
+        $stmtPos = $pdo->prepare("SELECT direction, entry_price, qty, opened_at FROM positions WHERE symbol=:s AND `interval`=:i AND status='OPEN' ORDER BY opened_at DESC LIMIT 1");
+        $stmtPos->execute([':s' => $symbol, ':i' => $interval]);
+        $pos = $stmtPos->fetch(PDO::FETCH_ASSOC);
+
+        $holding = $pos ? 1 : 0;
+        $entry   = $pos ? (float)$pos['entry_price'] : null;
+        $last    = $lastPx;
+
+        // 4) 預估 PnL（不扣成本）：(last - entry) * qty_signed
+        $est = null;
+        if ($pos && $last !== null) {
+            $dir = strtoupper($pos['direction']);
+            $qty = (float)$pos['qty'];
+            $qtySigned = ($dir === 'LONG') ? $qty : -$qty;
+            $est = ($last - $entry) * $qtySigned;
+        }
+
+        echo json_encode([
+            'ts'          => $lastTs,
+            'action'      => $action,           // LONG / SHORT / HOLD
+            'holding'     => $holding,          // 1/0
+            'entry_price' => $entry,            // null when not holding
+            'last_price'  => $last,             // may be null if無K線
+            'est_pnl'     => $est               // null when not holding
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+
     // all + pagination（10 筆/頁）
     $countSql = "SELECT COUNT(*) AS c FROM trades_log $whereSql";
     $stmtC = $pdo->prepare($countSql);
@@ -94,7 +161,6 @@ try {
         'page'  => $page,
         'page_size' => $pageSize
     ], JSON_UNESCAPED_UNICODE);
-
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);

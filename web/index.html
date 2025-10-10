@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Autobot 儀表板</title>
-  <link rel="stylesheet" href="assets/css/style.css?v=19" />
+  <link rel="stylesheet" href="assets/css/style.css?v=22" />
   <link rel="icon" type="image/png" href="assets/img/favicon.png">
 
 </head>
@@ -54,14 +54,14 @@
       </div>
 
       <div class="card mt-12">
-          <div class="mb-12">
-            <label>交易模式｜Trade Mode</label>
-            <select id="tradeMode">
-              <option value="SIM">模擬下單</option>
-              <option value="LIVE">真實下單</option>
-            </select>
-            <div class="label-sm">當選擇真實下單時，需勾選下方「二次保險」才會真的下單。</div>
-          </div>
+        <div class="mb-12">
+          <label>交易模式｜Trade Mode</label>
+          <select id="tradeMode">
+            <option value="SIM">模擬下單</option>
+            <option value="LIVE">真實下單</option>
+          </select>
+          <div class="label-sm">當選擇真實下單時，需勾選下方「二次保險」才會真的下單。</div>
+        </div>
 
         <!-- 只有 LIVE 時才顯示 -->
         <div id="liveArmedBlock">
@@ -178,8 +178,41 @@
         <div id="statHold" class="stat-num">0</div>
       </div>
     </section>
+    <!-- 區塊 3.2：目前動作（表格版） -->
+    <section class="card">
+      <h2 class="m0">目前動作</h2>
 
-        <!-- 區塊 3.5：近10次交易 / 全部交易（可分頁） -->
+      <div class="mt-12" style="overflow:auto;">
+        <table class="table now-table">
+          <tbody>
+            <tr>
+              <th>時間</th>
+              <td id="nowTime">--</td>
+              <th>當前價格</th>
+              <td id="nowLast" class="mono">--</td>
+            </tr>
+            <tr>
+              <th>持倉狀況</th>
+              <td id="nowHolding">--</td>
+              <th>買進價</th>
+              <td id="nowEntry" class="mono">--</td>
+            </tr>
+            <tr>
+              <th>動作</th>
+              <td id="nowAction">--</td>
+
+              <th>預估獲利(USD)</th>
+              <td id="nowPnl" class="big mono">--</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <small class="muted mt-8">※ 預估獲利為即時估算（未扣交易成本）。</small>
+    </section>
+
+
+    <!-- 區塊 3.5：近10次交易 / 全部交易（可分頁） -->
     <section class="card" id="tradesBlock">
       <div class="row ai-center">
         <h2 class="m0">交易紀錄</h2>
@@ -195,7 +228,7 @@
               <th style="text-align:left; padding:8px;">時間</th>
               <th style="text-align:left; padding:8px;">交易別</th>
               <th style="text-align:right; padding:8px;">買進價</th>
-              <th style="text-align:right; padding:8px;">買出價</th>
+              <th style="text-align:right; padding:8px;">賣出價</th>
               <th style="text-align:right; padding:8px;">模板ID</th>
               <th style="text-align:right; padding:8px;">獲利(USD)</th>
             </tr>
@@ -303,7 +336,7 @@
 
   <script src="assets/js/app.js?v=19"></script>
   <script src="assets/js/metrics.js?v=4"></script>
-  <script src="assets/js/trades.js?v=5"></script>
+  <script src="assets/js/trades.js?v=6"></script>
 </body>
 
 </html>

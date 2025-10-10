@@ -193,7 +193,8 @@ def _job_one(symbol: str, interval: str) -> None:
 # -----------------------------
 # 掛載並啟動 Scheduler
 # -----------------------------
-def build_and_start_scheduler() -> BackgroundScheduler:
+def build_and_start_scheduler(*, only_evolver: bool = False) -> BackgroundScheduler:
+
     db_connect.get_connection().close()
 
     symbols, intervals, enabled = _read_settings()
@@ -218,26 +219,28 @@ def build_and_start_scheduler() -> BackgroundScheduler:
     scheduler.start()
     log.info("Scheduler started. tz=%s is_enabled=%s", getattr(TZ, "zone", "system"), enabled)
 
-    # 逐一掛載每個 symbol/interval 的 bar 任務
-    for s in symbols:
-        for itv in intervals:
-            trig, kwargs = _parse_interval(itv)
-            job_id = f"bar_{s}_{itv}"
-            try:
-                scheduler.add_job(
-                    _job_one,
-                    trigger=trig,
-                    id=job_id,
-                    kwargs={"symbol": s, "interval": itv},
-                    replace_existing=True,
-                    coalesce=True,
-                    max_instances=1,
-                    **kwargs,
-                )
-                log.info("掛載任務：%s (%s)", job_id, itv)
-            except Exception as e:
-                push_error(f"scheduler:{s}:{itv}", f"{type(e).__name__}: {e}")
-                log.exception("掛載任務失敗：%s %s | %s", s, itv, e)
+    # 逐一掛載每個 symbol/interval 的 bar 任務（only_evolver=True 時不掛）
+    if not only_evolver:
+        for s in symbols:
+            for itv in intervals:
+                trig, kwargs = _parse_interval(itv)
+                job_id = f"bar_{s}_{itv}"
+                try:
+                    scheduler.add_job(
+                        _job_one,
+                        trigger=trig,
+                        id=job_id,
+                        kwargs={"symbol": s, "interval": itv},
+                        replace_existing=True,
+                        coalesce=True,
+                        max_instances=1,
+                        **kwargs,
+                    )
+                    log.info("掛載任務：%s (%s)", job_id, itv)
+                except Exception as e:
+                    push_error(f"scheduler:{s}:{itv}", f"{type(e).__name__}: {e}")
+                    log.exception("掛載任務失敗：%s %s | %s", s, itv, e)
+
 
     # —— 每日/每週演化任務（注意：放在雙層 for 之外，避免重覆註冊）——
     try:

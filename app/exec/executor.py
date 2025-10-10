@@ -197,12 +197,12 @@ def _settings_mode_and_costs() -> Dict[str, Any]:
     
     r = exec("SELECT trade_mode, live_armed, fee_rate, slip_rate FROM settings WHERE id=1").mappings().first()
     if not r:
-        return {"trade_mode": "SIM", "live_armed": 0, "fee_rate": 0.0004, "slip_rate": 0.0005}
+        return {"trade_mode": "SIM", "live_armed": 0, "fee_rate": 0.0004, "slip_rate": 0.0002}
     return {
         "trade_mode": str(r.get("trade_mode") or "SIM").upper(),
         "live_armed": int(r.get("live_armed") or 0),
         "fee_rate": float(r.get("fee_rate") or 0.0004),
-        "slip_rate": float(r.get("slip_rate") or 0.0005),
+        "slip_rate": float(r.get("slip_rate") or 0.0002),
     }
 
 def _exit_horizon_auto_enabled() -> bool:
